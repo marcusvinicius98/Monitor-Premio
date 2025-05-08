@@ -1,12 +1,22 @@
 const axios = require('axios');
+const fs = require('fs');
+const path = require('path');
 
-const message = process.argv.slice(2).join(' ') || '🚨 Alteração detectada!';
 const token = process.env.TELEGRAM_BOT_TOKEN;
 const chatId = process.env.TELEGRAM_CHAT_ID;
 
 if (!token || !chatId) {
-  console.error('❌ TELEGRAM_BOT_TOKEN ou TELEGRAM_CHAT_ID não estão definidos.');
+  console.error('❌ TELEGRAM_BOT_TOKEN ou TELEGRAM_CHAT_ID não definidos.');
   process.exit(1);
+}
+
+let message = process.argv.slice(2).join(' ') || '🚨 Alteração detectada!';
+
+// Se existir diff, inclui na mensagem
+const diffPath = path.resolve(__dirname, 'diff_table.txt');
+if (fs.existsSync(diffPath)) {
+  const diffText = fs.readFileSync(diffPath, 'utf8');
+  message += `\n\n🔍 Linhas alteradas:\n${diffText}`;
 }
 
 const url = `https://api.telegram.org/bot${token}/sendMessage`;
@@ -16,11 +26,9 @@ axios.post(url, {
   text: message,
   parse_mode: 'HTML',
   disable_web_page_preview: true,
-})
-.then(() => {
+}).then(() => {
   console.log('✅ Mensagem enviada com sucesso via Telegram.');
-})
-.catch(err => {
-  console.error('❌ Falha ao enviar mensagem:', err.message);
+}).catch(err => {
+  console.error('❌ Erro ao enviar mensagem:', err.message);
   process.exit(1);
 });
