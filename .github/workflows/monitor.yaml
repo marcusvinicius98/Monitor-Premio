@@ -18,7 +18,7 @@ jobs:
       with:
         name: prev_tabela
         path: scripts/downloads
-      continue-on-error: true  # Pode não existir na primeira execução
+      continue-on-error: true
 
     - name: Instalar dependências do sistema
       run: |
@@ -56,13 +56,12 @@ jobs:
       run: |
         node scripts/send_telegram_file.js
 
-    - name: Salvar planilhas como artefato (inclui prev para próxima comparação)
-      if: always()
+    - name: Salvar planilhas de diferença como artefato
+      if: steps.monitor.outputs.has_changes == 'true'
       uses: actions/upload-artifact@main
       with:
         name: Diferencas_CNJ
         path: |
-          scripts/downloads/prev_tabela.xlsx
           scripts/downloads/Diferencas_CNJ.xlsx
           scripts/downloads/Diferencas_CNJ_TJMT.xlsx
 
