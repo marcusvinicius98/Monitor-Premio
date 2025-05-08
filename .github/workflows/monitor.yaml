@@ -29,7 +29,7 @@ jobs:
 
     - name: Rodar monitor com Puppeteer
       id: monitor
-      continue-on-error: true
+      continue-on-error: true  # 👈 ESSENCIAL para não parar o workflow
       run: |
         node scripts/monitor-puppeteer.js
         if [ $? -eq 0 ]; then
@@ -37,6 +37,7 @@ jobs:
         else
           echo "has_changes=true" >> $GITHUB_OUTPUT
         fi
+
 
     - name: Enviar alerta se houver alteração
       if: steps.monitor.outputs.has_changes == 'true'
