@@ -6,6 +6,7 @@ const URL = 'https://paineisanalytics.cnj.jus.br/single/?appid=b532a1c7-3028-404
 
 const HASH_FILE = path.resolve(__dirname, 'last_hash.txt');
 const DATA_FILE = path.resolve(__dirname, 'last_table_data.txt');
+const PREV_DATA_FILE = path.resolve(__dirname, 'prev_table_data.txt');
 
 (async () => {
   const browser = await puppeteer.launch({
@@ -16,33 +17,44 @@ const DATA_FILE = path.resolve(__dirname, 'last_table_data.txt');
 
   try {
     await page.goto(URL, { waitUntil: 'networkidle2' });
-
-    // Scroll para garantir que os dados carreguem
     await page.evaluate(() => window.scrollBy(0, window.innerHeight));
-
-    // Espera pelos dados reais da tabela
     await page.waitForSelector('.qv-st-data .qv-st-value span', { timeout: 60000 });
 
-    // Extrai todos os textos visíveis das células
-    const tableText = await page.evaluate(() => {
+    const lines = await page.evaluate(() => {
       return Array.from(document.querySelectorAll('.qv-st-data .qv-st-value span'))
         .map(el => el.innerText.trim())
-        .filter(Boolean)
-        .join('|'); // ou '\n' para linha por linha
+        .filter(Boolean);
     });
 
-    fs.writeFileSync(DATA_FILE, tableText);
-
+    const tableText = lines.join('\n');
     if (!tableText || tableText.length < 10) {
       console.log('⚠️ Tabela vazia ou ilegível. Abortando notificação.');
       process.exit(0);
     }
 
+    fs.writeFileSync(DATA_FILE, tableText);
+
     const currentHash = Buffer.from(tableText).toString('base64');
     const previousHash = fs.existsSync(HASH_FILE) ? fs.readFileSync(HASH_FILE, 'utf8') : null;
 
     if (currentHash !== previousHash) {
+      // salvar versão anterior
+      if (fs.existsSync(DATA_FILE)) {
+        fs.copyFileSync(DATA_FILE, PREV_DATA_FILE);
+      }
+
       fs.writeFileSync(HASH_FILE, currentHash);
+
+      // mostrar diferenças no log
+      if (fs.existsSync(PREV_DATA_FILE)) {
+        const previousLines = fs.readFileSync(PREV_DATA_FILE, 'utf8').split('\n');
+        const changed = lines.filter((line, idx) => line !== previousLines[idx]);
+        console.log('🔍 Linhas alteradas:');
+        changed.forEach((line, i) => {
+          console.log(`Linha ${i + 1}: ${line}`);
+        });
+      }
+
       console.log('✅ Alteração detectada na tabela.');
       process.exit(1);
     } else {
