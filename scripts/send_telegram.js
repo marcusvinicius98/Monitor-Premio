@@ -1,25 +1,26 @@
 const axios = require('axios');
 
-async function sendTelegramNotification(message) {
-    const botToken = process.env.TELEGRAM_BOT_TOKEN;
-    const chatId = process.env.TELEGRAM_CHAT_ID;
-    
-    if (!botToken || !chatId) {
-        throw new Error('Variáveis de ambiente TELEGRAM_BOT_TOKEN e TELEGRAM_CHAT_ID são necessárias');
-    }
+const message = process.argv.slice(2).join(' ') || '🚨 Alteração detectada!';
+const token = process.env.TELEGRAM_BOT_TOKEN;
+const chatId = process.env.TELEGRAM_CHAT_ID;
 
-    const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
-    
-    try {
-        await axios.post(url, {
-            chat_id: chatId,
-            text: message,
-            parse_mode: 'Markdown'
-        });
-        console.log('Notificação enviada com sucesso!');
-    } catch (error) {
-        console.error('Erro ao enviar notificação:', error.message);
-    }
+if (!token || !chatId) {
+  console.error('❌ TELEGRAM_BOT_TOKEN ou TELEGRAM_CHAT_ID não estão definidos.');
+  process.exit(1);
 }
 
-module.exports = sendTelegramNotification;
+const url = `https://api.telegram.org/bot${token}/sendMessage`;
+
+axios.post(url, {
+  chat_id: chatId,
+  text: message,
+  parse_mode: 'HTML',
+  disable_web_page_preview: true,
+})
+.then(() => {
+  console.log('✅ Mensagem enviada com sucesso via Telegram.');
+})
+.catch(err => {
+  console.error('❌ Falha ao enviar mensagem:', err.message);
+  process.exit(1);
+});
