@@ -25,6 +25,7 @@ const HASH_FILE = path.resolve(__dirname, 'last_hash.txt');
 
     if (currentHash !== previousHash) {
       fs.writeFileSync(HASH_FILE, currentHash);
+      fs.writeFileSync(path.resolve(__dirname, 'last_table_data.txt'), tableCells); // 👈 aqui salva os dados para análise
       console.log('✅ Alteração real detectada na tabela.');
       process.exit(1);
     } else {
