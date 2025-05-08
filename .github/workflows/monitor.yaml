@@ -25,7 +25,11 @@ jobs:
       id: monitor
       run: |
         node scripts/monitor.js
-        echo "::set-output name=has_changes::$?"
+        if [ $? -eq 0 ]; then
+          echo "has_changes=false" >> $GITHUB_OUTPUT
+        else
+          echo "has_changes=true" >> $GITHUB_OUTPUT
+        fi
         
     - name: Send notification if changes detected
       if: steps.monitor.outputs.has_changes == 'true'
