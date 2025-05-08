@@ -24,13 +24,14 @@ jobs:
     - name: Run monitor
       id: monitor
       run: |
-        node scripts/monitor.js
-        if [ $? -eq 0 ]; then
+        EXIT_CODE=0
+        node scripts/monitor.js || EXIT_CODE=$?
+        if [ "$EXIT_CODE" -eq 0 ]; then
           echo "has_changes=false" >> $GITHUB_OUTPUT
         else
           echo "has_changes=true" >> $GITHUB_OUTPUT
         fi
-        
+          
     - name: Send notification if changes detected
       if: steps.monitor.outputs.has_changes == 'true'
       env:
