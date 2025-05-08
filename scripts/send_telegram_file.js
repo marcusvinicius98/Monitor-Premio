@@ -5,7 +5,7 @@ const path = require('path');
 
 const token = process.env.TELEGRAM_BOT_TOKEN;
 const chatId = process.env.TELEGRAM_CHAT_ID;
-const filePath = path.resolve(__dirname, 'downloads/tabela_atual.xlsx');
+const filePath = path.resolve(__dirname, 'downloads/Diferencas_CNJ.xlsx');
 
 if (!fs.existsSync(filePath)) {
   console.error('❌ Arquivo não encontrado:', filePath);

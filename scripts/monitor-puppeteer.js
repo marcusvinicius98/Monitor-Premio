@@ -3,16 +3,25 @@ const fs = require('fs');
 const path = require('path');
 const XLSX = require('xlsx');
 
-const URL = 'https://paineisanalytics.cnj.jus.br/single/?appid=c87073c8-32b3-4b3f-911a-b25063edf692&sheet=fb006575-35ca-4ccd-928c-368edd2045ba&theme=cnj_theme&opt=ctxmenu&select=Ramo%20de%20justi%C3%A7a,Estadual&select=Ano,&select=tribunal_proces';
+const URL = 'https://paineisanalytics.cnj.jus.br/single/?appid=b532a1c7-3028-4041-80e2-9620527bd3fa&sheet=fb006575-35ca-4ccd-928c-368edd2045ba&theme=cnj_theme&opt=ctxmenu&select=Ramo%20de%20justi%C3%A7a,Trabalho&select=Ano,&select=tribunal_proces';
 
 const DOWNLOAD_DIR = path.resolve(__dirname, 'downloads');
-const LAST_CSV = path.resolve(__dirname, 'last_table.csv');
-const PREV_CSV = path.resolve(__dirname, 'prev_table.csv');
+const XLSX_PATH = path.join(DOWNLOAD_DIR, 'tabela_atual.xlsx');
+const PREV_XLSX_PATH = path.join(DOWNLOAD_DIR, 'prev_tabela.xlsx');
+const DIFF_XLSX_PATH = path.join(DOWNLOAD_DIR, 'Diferencas_CNJ.xlsx');
 const FLAG_FILE = path.resolve(__dirname, 'monitor_flag.txt');
-const DIFF_FILE = path.resolve(__dirname, 'diff_table.txt');
 
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function toMapByKey(data, keyCols) {
+  const map = new Map();
+  for (const row of data) {
+    const key = keyCols.map(col => row[col]).join('|');
+    map.set(key, row);
+  }
+  return map;
 }
 
 (async () => {
@@ -32,7 +41,6 @@ function sleep(ms) {
     });
 
     await page.goto(URL, { waitUntil: 'networkidle2' });
-
     await page.waitForSelector('.btn.btn-primary', { timeout: 60000 });
     await page.click('.btn.btn-primary');
 
@@ -47,41 +55,75 @@ function sleep(ms) {
     }
 
     if (!downloadedFile) throw new Error('Arquivo .xlsx não foi baixado.');
+    fs.renameSync(downloadedFile, XLSX_PATH);
 
-    const finalXlsx = path.join(DOWNLOAD_DIR, 'tabela_atual.xlsx');
-    fs.renameSync(downloadedFile, finalXlsx);
+    const atual = XLSX.utils.sheet_to_json(XLSX.readFile(XLSX_PATH).Sheets.Sheet1);
+    const anterior = fs.existsSync(PREV_XLSX_PATH)
+      ? XLSX.utils.sheet_to_json(XLSX.readFile(PREV_XLSX_PATH).Sheets.Sheet1)
+      : [];
 
-    const workbook = XLSX.readFile(finalXlsx);
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const csvData = XLSX.utils.sheet_to_csv(sheet).trim();
+    const diffs = [];
+    const atualMap = toMapByKey(atual, ['Tribunal', 'Requisito']);
+    const anteriorMap = toMapByKey(anterior, ['Tribunal', 'Requisito']);
 
-    fs.writeFileSync(LAST_CSV, csvData);
+    for (const [key, ant] of anteriorMap.entries()) {
+      const atu = atualMap.get(key);
+      if (atu) {
+        if (ant['Pontuação'] !== atu['Pontuação'] || ant['Resultado'] !== atu['Resultado']) {
+          diffs.push({
+            'Tribunal (Ant)': ant['Tribunal'],
+            'Requisito (Ant)': ant['Requisito'],
+            'Resultado (Ant)': ant['Resultado'],
+            'Pontuação (Ant)': ant['Pontuação'],
+            'Tribunal (Atual)': atu['Tribunal'],
+            'Requisito (Atual)': atu['Requisito'],
+            'Resultado (Atual)': atu['Resultado'],
+            'Pontuação (Atual)': atu['Pontuação']
+          });
+        }
+      } else {
+        diffs.push({
+          'Tribunal (Ant)': ant['Tribunal'],
+          'Requisito (Ant)': ant['Requisito'],
+          'Resultado (Ant)': ant['Resultado'],
+          'Pontuação (Ant)': ant['Pontuação'],
+          'Tribunal (Atual)': 'Não encontrado',
+          'Requisito (Atual)': 'Não encontrado',
+          'Resultado (Atual)': 'Não encontrado',
+          'Pontuação (Atual)': 'Não encontrado'
+        });
+      }
+    }
 
-    const currentLines = new Set(csvData.split('\n').map(l => l.trim()).filter(Boolean));
-    const previousLines = fs.existsSync(PREV_CSV)
-      ? new Set(fs.readFileSync(PREV_CSV, 'utf8').split('\n').map(l => l.trim()).filter(Boolean))
-      : new Set();
+    for (const [key, atu] of atualMap.entries()) {
+      if (!anteriorMap.has(key)) {
+        diffs.push({
+          'Tribunal (Ant)': 'Não encontrado',
+          'Requisito (Ant)': 'Não encontrado',
+          'Resultado (Ant)': 'Não encontrado',
+          'Pontuação (Ant)': 'Não encontrado',
+          'Tribunal (Atual)': atu['Tribunal'],
+          'Requisito (Atual)': atu['Requisito'],
+          'Resultado (Atual)': atu['Resultado'],
+          'Pontuação (Atual)': atu['Pontuação']
+        });
+      }
+    }
 
-    const added = [...currentLines].filter(x => !previousLines.has(x));
-    const removed = [...previousLines].filter(x => !currentLines.has(x));
-
-    if (added.length === 0 && removed.length === 0) {
-      fs.writeFileSync(DIFF_FILE, 'Nenhuma linha alterada.');
-    } else {
-      fs.copyFileSync(LAST_CSV, PREV_CSV);
+    if (diffs.length > 0) {
+      fs.copyFileSync(XLSX_PATH, PREV_XLSX_PATH);
+      const ws = XLSX.utils.json_to_sheet(diffs);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Diferenças');
+      XLSX.writeFile(wb, DIFF_XLSX_PATH);
       fs.writeFileSync(FLAG_FILE, 'HAS_CHANGES=1');
-
-      let diff = '';
-      if (added.length > 0) diff += '➕ Linhas adicionadas:\n' + added.map(l => '+ ' + l).join('\n') + '\n\n';
-      if (removed.length > 0) diff += '➖ Linhas removidas:\n' + removed.map(l => '- ' + l).join('\n');
-
-      fs.writeFileSync(DIFF_FILE, diff.trim());
-      console.log(diff.trim());
+      console.log('✅ Diferenças detectadas e salvas.');
+    } else {
+      console.log('✅ Sem diferenças detectadas.');
     }
 
     process.exit(0);
   } catch (err) {
-    await page.screenshot({ path: 'scripts/erro_tabela.png' });
     console.error('❌ Erro:', err.message);
     process.exit(1);
   } finally {
