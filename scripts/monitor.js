@@ -8,10 +8,14 @@ const HASH_FILE = path.resolve(__dirname, 'last_hash.txt');
 (async () => {
   try {
     const response = await axios.get(URL);
-    const currentContent = response.data;
+    const html = response.data;
 
-    // Gera um hash simples com base no conteúdo (ou use um trecho específico)
-    const currentHash = Buffer.from(currentContent).toString('base64').substring(0, 100); // reduzido para desempenho
+    // Captura apenas os valores textuais das células <td> que estão na tabela
+    const tableData = Array.from(html.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi))
+      .map(match => match[1].replace(/<[^>]+>/g, '').trim()) // remove tags internas e espaços
+      .join('|'); // separa com pipe para manter consistência na ordenação
+
+    const currentHash = Buffer.from(tableData).toString('base64');
 
     let previousHash = null;
     if (fs.existsSync(HASH_FILE)) {
@@ -19,17 +23,16 @@ const HASH_FILE = path.resolve(__dirname, 'last_hash.txt');
     }
 
     if (currentHash !== previousHash) {
-      // Conteúdo mudou
       fs.writeFileSync(HASH_FILE, currentHash);
-      console.log('Alteração detectada.');
-      process.exit(1); // <- Indica que houve alteração
+      console.log('✅ Alteração real detectada na tabela.');
+      process.exit(1);
     } else {
-      console.log('Sem alteração.');
-      process.exit(0); // <- Nada mudou
+      console.log('🟢 Sem alteração nos dados da tabela.');
+      process.exit(0);
     }
 
   } catch (error) {
-    console.error('Erro ao acessar o painel CNJ:', error.message);
-    process.exit(1); // <- Em caso de erro, notifica como se fosse mudança para garantir alerta
+    console.error('❌ Erro ao acessar o painel:', error.message);
+    process.exit(1); // melhor enviar alerta por segurança
   }
 })();
