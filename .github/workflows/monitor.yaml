@@ -13,6 +13,13 @@ jobs:
     - name: Checkout do repositório
       uses: actions/checkout@v2
 
+    - name: Restaurar artefato anterior (prev_tabela.xlsx)
+      uses: actions/download-artifact@v3
+      with:
+        name: Diferencas_CNJ
+        path: scripts/downloads
+      continue-on-error: true  # Pode não existir na primeira execução
+
     - name: Instalar dependências do sistema
       run: |
         sudo apt-get update
@@ -49,11 +56,12 @@ jobs:
       run: |
         node scripts/send_telegram_file.js
 
-    - name: Salvar arquivos como artefatos
-      if: steps.monitor.outputs.has_changes == 'true'
+    - name: Salvar planilhas como artefato (inclui prev para próxima comparação)
+      if: always()
       uses: actions/upload-artifact@main
       with:
         name: Diferencas_CNJ
         path: |
+          scripts/downloads/prev_tabela.xlsx
           scripts/downloads/Diferencas_CNJ.xlsx
           scripts/downloads/Diferencas_CNJ_TJMT.xlsx
