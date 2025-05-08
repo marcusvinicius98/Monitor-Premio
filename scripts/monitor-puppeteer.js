@@ -8,7 +8,10 @@ const HASH_FILE = path.resolve(__dirname, 'last_hash.txt');
 const DATA_FILE = path.resolve(__dirname, 'last_table_data.txt');
 
 (async () => {
-  const browser = await puppeteer.launch({ headless: 'new' });
+  const browser = await puppeteer.launch({
+    headless: 'new',
+    args: ['--no-sandbox', '--disable-setuid-sandbox']
+  });
   const page = await browser.newPage();
 
   try {
@@ -26,6 +29,7 @@ const DATA_FILE = path.resolve(__dirname, 'last_table_data.txt');
       }).join('\n');
     });
 
+    // Salva o conteúdo da tabela
     fs.writeFileSync(DATA_FILE, tableText);
 
     if (!tableText || tableText.length < 10) {
