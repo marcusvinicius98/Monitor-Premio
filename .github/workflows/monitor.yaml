@@ -13,7 +13,7 @@ jobs:
     - name: Checkout do repositório
       uses: actions/checkout@v2
 
-    - name: Instalar dependências de sistema para Puppeteer
+    - name: Instalar dependências do sistema
       run: |
         sudo apt-get update
         sudo apt-get install -y \
@@ -24,7 +24,7 @@ jobs:
           libxss1 \
           libasound2t64
 
-    - name: Instalar dependências do Node.js
+    - name: Instalar pacotes Node.js
       run: |
         cd scripts
         npm install
@@ -41,7 +41,7 @@ jobs:
           echo "has_changes=false" >> $GITHUB_OUTPUT
         fi
 
-    - name: Enviar arquivo de diferenças via Telegram
+    - name: Enviar arquivos de diferença via Telegram
       if: steps.monitor.outputs.has_changes == 'true'
       env:
         TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -49,9 +49,11 @@ jobs:
       run: |
         node scripts/send_telegram_file.js
 
-    - name: Salvar artefatos do workflow
+    - name: Salvar arquivos como artefatos
       if: steps.monitor.outputs.has_changes == 'true'
       uses: actions/upload-artifact@main
       with:
         name: Diferencas_CNJ
-        path: scripts/downloads/Diferencas_CNJ.xlsx
+        path: |
+          scripts/downloads/Diferencas_CNJ.xlsx
+          scripts/downloads/Diferencas_CNJ_TJMT.xlsx
