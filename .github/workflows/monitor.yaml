@@ -29,6 +29,7 @@ jobs:
 
     - name: Rodar monitor com Puppeteer
       id: monitor
+      continue-on-error: true
       run: |
         node scripts/monitor-puppeteer.js
         if [ $? -eq 0 ]; then
