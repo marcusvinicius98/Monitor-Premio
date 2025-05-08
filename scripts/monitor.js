@@ -1,55 +1,54 @@
-const axios = require('axios');
+const puppeteer = require('puppeteer');
 const fs = require('fs');
 const path = require('path');
 
-const URL = 'https://paineisanalytics.cnj.jus.br/single/?appid=c87073c8-32b3-4b3f-911a-b25063edf692&sheet=fb006575-35ca-4ccd-928c-368edd2045ba&theme=cnj_theme&opt=ctxmenu&select=Ramo%20de%20justi%C3%A7a,Estadual&select=Ano,&select=tribunal_proces';
+const URL = 'https://paineisanalytics.cnj.jus.br/single/?appid=b532a1c7-3028-4041-80e2-9620527bd3fa&sheet=fb006575-35ca-4ccd-928c-368edd2045ba&theme=cnj_theme&opt=ctxmenu&select=Ramo%20de%20justi%C3%A7a,Trabalho&select=Ano,&select=tribunal_proces';
 
 const HASH_FILE = path.resolve(__dirname, 'last_hash.txt');
 const DATA_FILE = path.resolve(__dirname, 'last_table_data.txt');
 
 (async () => {
+  const browser = await puppeteer.launch({ headless: 'new' });
+  const page = await browser.newPage();
+
   try {
-    const response = await axios.get(URL);
-    const html = response.data;
+    await page.goto(URL, { waitUntil: 'networkidle2' });
 
-    // Extrai conteúdo visível das células <td>
-    const rawMatches = Array.from(html.matchAll(/<td[^>]*>(.*?)<\/td>/gi));
-    const tableCells = rawMatches
-      .map(match => match[1]
-        .replace(/<[^>]+>/g, '')    // remove tags internas
-        .replace(/&nbsp;/g, ' ')    // converte espaços não separáveis
-        .trim()
-      )
-      .filter(text => text !== '') // remove células vazias
-      .join('|');
+    // Aguarda o carregamento da tabela
+    await page.waitForSelector('.qv-object-table table', { timeout: 30000 });
 
-    // Salva conteúdo atual da tabela para inspeção
-    fs.writeFileSync(DATA_FILE, tableCells);
+    // Extrai os textos das células (em ordem visual)
+    const tableText = await page.evaluate(() => {
+      const rows = Array.from(document.querySelectorAll('.qv-object-table table tr'));
+      return rows.map(row => {
+        const cells = Array.from(row.querySelectorAll('th span, td span'));
+        return cells.map(cell => cell.innerText.trim()).join('\t');
+      }).join('\n');
+    });
 
-    // Se não extraiu nada relevante, cancela a execução silenciosamente
-    if (!tableCells || tableCells.length < 10) {
-      console.log('⚠️ Nenhum conteúdo útil extraído da tabela. Abortando notificação.');
+    fs.writeFileSync(DATA_FILE, tableText);
+
+    if (!tableText || tableText.length < 10) {
+      console.log('⚠️ Tabela vazia ou ilegível. Abortando notificação.');
       process.exit(0);
     }
 
-    const currentHash = Buffer.from(tableCells).toString('base64');
-
-    let previousHash = null;
-    if (fs.existsSync(HASH_FILE)) {
-      previousHash = fs.readFileSync(HASH_FILE, 'utf8');
-    }
+    const currentHash = Buffer.from(tableText).toString('base64');
+    const previousHash = fs.existsSync(HASH_FILE) ? fs.readFileSync(HASH_FILE, 'utf8') : null;
 
     if (currentHash !== previousHash) {
       fs.writeFileSync(HASH_FILE, currentHash);
-      console.log('✅ Alteração real detectada na tabela.');
+      console.log('✅ Alteração detectada na tabela.');
       process.exit(1);
     } else {
       console.log('🟢 Sem alteração nos dados da tabela.');
       process.exit(0);
     }
 
-  } catch (error) {
-    console.error('❌ Erro ao acessar o painel CNJ:', error.message);
-    process.exit(1); // por segurança, alerta se falhou
+  } catch (err) {
+    console.error('❌ Erro ao processar a tabela:', err.message);
+    process.exit(1);
+  } finally {
+    await browser.close();
   }
 })();
