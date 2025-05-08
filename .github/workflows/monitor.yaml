@@ -1,9 +1,9 @@
-name: Monitor CNJ
+name: Monitor CNJ VBA-Style
 
 on:
   schedule:
     - cron: '*/30 * * * *'  # Executa a cada 30 minutos
-  workflow_dispatch:        # Permite execução manual
+  workflow_dispatch:
 
 jobs:
   monitor:
@@ -13,7 +13,7 @@ jobs:
     - name: Checkout do repositório
       uses: actions/checkout@v2
 
-    - name: Instalar dependências do sistema para o Puppeteer
+    - name: Instalar dependências de sistema para Puppeteer
       run: |
         sudo apt-get update
         sudo apt-get install -y \
@@ -24,7 +24,7 @@ jobs:
           libxss1 \
           libasound2t64
 
-    - name: Instalar dependências Node.js
+    - name: Instalar dependências do Node.js
       run: |
         cd scripts
         npm install
@@ -41,15 +41,7 @@ jobs:
           echo "has_changes=false" >> $GITHUB_OUTPUT
         fi
 
-    - name: Enviar mensagem de alerta via Telegram
-      if: steps.monitor.outputs.has_changes == 'true'
-      env:
-        TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-      run: |
-        node scripts/send_telegram.js $'🚨 Alteração detectada no painel CNJ!\n\nSegue o relatório em anexo.'
-
-    - name: Enviar arquivo XLSX via Telegram
+    - name: Enviar arquivo de diferenças via Telegram
       if: steps.monitor.outputs.has_changes == 'true'
       env:
         TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -61,7 +53,5 @@ jobs:
       if: steps.monitor.outputs.has_changes == 'true'
       uses: actions/upload-artifact@main
       with:
-        name: relatorio-monitor-cnjs
-        path: |
-          scripts/diff_table.txt
-          scripts/downloads/tabela_atual.xlsx
+        name: Diferencas_CNJ
+        path: scripts/downloads/Diferencas_CNJ.xlsx
