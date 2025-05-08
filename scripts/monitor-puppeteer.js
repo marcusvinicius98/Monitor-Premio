@@ -17,19 +17,18 @@ const DATA_FILE = path.resolve(__dirname, 'last_table_data.txt');
   try {
     await page.goto(URL, { waitUntil: 'networkidle2' });
 
-    // Força scroll para baixo para garantir que a tabela renderize
+    // Scroll para garantir que os dados carreguem
     await page.evaluate(() => window.scrollBy(0, window.innerHeight));
 
-    // Espera até que a tabela esteja visível (tempo estendido)
-    await page.waitForSelector('.qv-object-table table', { timeout: 60000 });
+    // Espera pelos dados reais da tabela
+    await page.waitForSelector('.qv-st-data .qv-st-value span', { timeout: 60000 });
 
-    // Extrai o texto das células da tabela
+    // Extrai todos os textos visíveis das células
     const tableText = await page.evaluate(() => {
-      const rows = Array.from(document.querySelectorAll('.qv-object-table table tr'));
-      return rows.map(row => {
-        const cells = Array.from(row.querySelectorAll('th span, td span'));
-        return cells.map(cell => cell.innerText.trim()).join('\t');
-      }).join('\n');
+      return Array.from(document.querySelectorAll('.qv-st-data .qv-st-value span'))
+        .map(el => el.innerText.trim())
+        .filter(Boolean)
+        .join('|'); // ou '\n' para linha por linha
     });
 
     fs.writeFileSync(DATA_FILE, tableText);
