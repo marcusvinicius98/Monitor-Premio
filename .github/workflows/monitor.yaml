@@ -13,10 +13,10 @@ jobs:
     - name: Checkout do repositório
       uses: actions/checkout@v2
 
-    - name: Restaurar artefato anterior (prev_tabela.xlsx)
+    - name: Restaurar artefato anterior da tabela original
       uses: actions/download-artifact@main
       with:
-        name: Diferencas_CNJ
+        name: prev_tabela
         path: scripts/downloads
       continue-on-error: true  # Pode não existir na primeira execução
 
@@ -65,3 +65,10 @@ jobs:
           scripts/downloads/prev_tabela.xlsx
           scripts/downloads/Diferencas_CNJ.xlsx
           scripts/downloads/Diferencas_CNJ_TJMT.xlsx
+
+    - name: Salvar prev_tabela para próxima execução
+      if: always()
+      uses: actions/upload-artifact@main
+      with:
+        name: prev_tabela
+        path: scripts/downloads/prev_tabela.xlsx
