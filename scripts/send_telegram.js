@@ -12,11 +12,11 @@ if (!token || !chatId) {
 
 let message = process.argv.slice(2).join(' ') || '🚨 Alteração detectada!';
 
-// Se existir diff, inclui na mensagem
+// Se existir diff_table.txt, anexa o conteúdo com formatação
 const diffPath = path.resolve(__dirname, 'diff_table.txt');
 if (fs.existsSync(diffPath)) {
   const diffText = fs.readFileSync(diffPath, 'utf8');
-  message += `\n\n🔍 Linhas alteradas:\n${diffText}`;
+  message += `\n\n<b>🔍 Linhas alteradas:</b>\n<pre>${diffText}</pre>`;
 }
 
 const url = `https://api.telegram.org/bot${token}/sendMessage`;
