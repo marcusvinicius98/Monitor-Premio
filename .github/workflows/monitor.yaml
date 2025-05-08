@@ -32,14 +32,14 @@ jobs:
           echo "has_changes=true" >> $GITHUB_OUTPUT
         fi
           
-        - name: Send notification if changes detected
+    - name: Send notification if changes detected
       if: steps.monitor.outputs.has_changes == 'true'
       env:
         TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
         TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       run: |
-        node scripts/send_telegram.js "🚨 Alteração detectada no painel CNJ!  Acesse: https://paineisanalytics.cnj.jus.br/single/?appid=c87073c8-32b3-4b3f-911a-b25063edf692&sheet=fb006575-35ca-4ccd-928c-368edd2045ba&theme=cnj_theme&opt=ctxmenu&select=Ramo%20de%20justi%C3%A7a,Estadual&select=Ano,&select=tribunal_proces"
-
+        node scripts/send_telegram.js "🚨 Alteração detectada no painel CNJ! Acesse: https://paineisanalytics.cnj.jus.br/single/?appid=c87073c8-32b3-4b3f-911a-b25063edf692&sheet=fb006575-35ca-4ccd-928c-368edd2045ba&theme=cnj_theme&opt=ctxmenu&select=Ramo%20de%20justi%C3%A7a,Estadual&select=Ano,&select=tribunal_proces"
+  
     - name: Upload tabela para análise
       if: steps.monitor.outputs.has_changes == 'true'
       uses: actions/upload-artifact@v3
