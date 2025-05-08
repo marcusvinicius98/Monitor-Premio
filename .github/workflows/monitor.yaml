@@ -3,46 +3,51 @@ name: Monitor CNJ
 on:
   schedule:
     - cron: '*/30 * * * *'  # Executa a cada 30 minutos
-  workflow_dispatch:  # Permite execução manual
+  workflow_dispatch:
 
 jobs:
   monitor:
     runs-on: ubuntu-latest
-    
+
     steps:
-    - name: Checkout code
+    - name: Checkout do repositório
       uses: actions/checkout@v2
-      
-    - name: Setup Node.js
-      uses: actions/setup-node@v2
-      with:
-        node-version: '16'
-        
-    - name: Install dependencies
-      run: npm install axios
-      
-    - name: Run monitor
+
+    - name: Instalar dependências do sistema para o Puppeteer
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          libnss3 \
+          libatk1.0-0 \
+          libatk-bridge2.0-0 \
+          libcups2 \
+          libxss1 \
+          libasound2
+
+    - name: Instalar Puppeteer sem package.json
+      run: npm install puppeteer
+
+    - name: Rodar monitor com Puppeteer
       id: monitor
       run: |
-        EXIT_CODE=0
-        node scripts/monitor.js || EXIT_CODE=$?
-        if [ "$EXIT_CODE" -eq 0 ]; then
+        node scripts/monitor-puppeteer.js
+        if [ $? -eq 0 ]; then
           echo "has_changes=false" >> $GITHUB_OUTPUT
         else
           echo "has_changes=true" >> $GITHUB_OUTPUT
         fi
-          
-    - name: Send notification if changes detected
+
+    - name: Enviar alerta se houver alteração
       if: steps.monitor.outputs.has_changes == 'true'
       env:
         TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
         TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       run: |
-        node scripts/send_telegram.js "🚨 Alteração detectada no painel CNJ! Acesse: https://paineisanalytics.cnj.jus.br/single/?appid=c87073c8-32b3-4b3f-911a-b25063edf692&sheet=fb006575-35ca-4ccd-928c-368edd2045ba&theme=cnj_theme&opt=ctxmenu&select=Ramo%20de%20justi%C3%A7a,Estadual&select=Ano,&select=tribunal_proces"
-  
-    - name: Upload tabela para análise
+        node scripts/send_telegram.js "🚨 Alteração detectada no painel CNJ!\n\nAcesse: https://paineisanalytics.cnj.jus.br/single/?appid=b532a1c7-3028-4041-80e2-9620527bd3fa&sheet=fb006575-35ca-4ccd-928c-368edd2045ba&theme=cnj_theme&opt=ctxmenu&select=Ramo%20de%20justi%C3%A7a,Trabalho&select=Ano,&select=tribunal_proces"
+
+    - name: Salvar conteúdo da tabela
       if: steps.monitor.outputs.has_changes == 'true'
-      uses: actions/upload-artifact@main
+      uses: actions/upload-artifact@v3.1.3
       with:
         name: dados-tabela-cnjs
         path: scripts/last_table_data.txt
