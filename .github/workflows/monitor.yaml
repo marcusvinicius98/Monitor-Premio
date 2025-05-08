@@ -24,7 +24,6 @@ jobs:
           libxss1 \
           libasound2t64
 
-
     - name: Instalar Puppeteer sem package.json
       run: npm install puppeteer
 
