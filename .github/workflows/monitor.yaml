@@ -12,8 +12,8 @@ jobs:
     steps:
     - name: Checkout do repositório
       uses: actions/checkout@v2
-
-    - name: Instalar dependências do sistema para o Puppeteer
+    
+     - name: Instalar dependências do sistema para o Puppeteer
       run: |
         sudo apt-get update
         sudo apt-get install -y \
@@ -22,7 +22,8 @@ jobs:
           libatk-bridge2.0-0 \
           libcups2 \
           libxss1 \
-          libasound2
+          libasound2t64
+
 
     - name: Instalar Puppeteer sem package.json
       run: npm install puppeteer
