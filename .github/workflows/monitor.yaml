@@ -29,13 +29,15 @@ jobs:
 
     - name: Rodar monitor com Puppeteer
       id: monitor
-      continue-on-error: true  # 👈 Impede que o job falhe com exit 1
+      continue-on-error: true
       run: |
-        node scripts/monitor-puppeteer.js
-        if [ $? -eq 0 ]; then
-          echo "has_changes=false" >> $GITHUB_OUTPUT
-        else
+        rm -f monitor_flag.txt
+        node scripts/monitor-puppeteer.js || echo "HAS_CHANGES=1" >> monitor_flag.txt
+    
+        if [ -f monitor_flag.txt ]; then
           echo "has_changes=true" >> $GITHUB_OUTPUT
+        else
+          echo "has_changes=false" >> $GITHUB_OUTPUT
         fi
 
     - name: Enviar alerta se houver alteração
