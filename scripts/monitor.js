@@ -10,12 +10,13 @@ const HASH_FILE = path.resolve(__dirname, 'last_hash.txt');
     const response = await axios.get(URL);
     const html = response.data;
 
-    // Captura apenas os valores textuais das células <td> que estão na tabela
-    const tableData = Array.from(html.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi))
-      .map(match => match[1].replace(/<[^>]+>/g, '').trim()) // remove tags internas e espaços
-      .join('|'); // separa com pipe para manter consistência na ordenação
+    // Pega apenas conteúdo entre <td>...</td>, e extrai somente texto visível
+    const tableCells = Array.from(html.matchAll(/<td[^>]*?>\s*<div[^>]*?>\s*<div[^>]*?>\s*(.*?)\s*<\/span>/gi))
+      .map(match => match[1].replace(/<[^>]+>/g, '').replace(/&nbsp;/g, '').trim())
+      .filter(text => text !== '') // remove células vazias
+      .join('|');
 
-    const currentHash = Buffer.from(tableData).toString('base64');
+    const currentHash = Buffer.from(tableCells).toString('base64');
 
     let previousHash = null;
     if (fs.existsSync(HASH_FILE)) {
@@ -32,7 +33,7 @@ const HASH_FILE = path.resolve(__dirname, 'last_hash.txt');
     }
 
   } catch (error) {
-    console.error('❌ Erro ao acessar o painel:', error.message);
-    process.exit(1); // melhor enviar alerta por segurança
+    console.error('❌ Erro ao acessar o painel CNJ:', error.message);
+    process.exit(1); // em caso de erro, melhor notificar
   }
 })();
