@@ -60,3 +60,12 @@ jobs:
           scripts/last_table_data.txt
           scripts/prev_table_data.txt
           scripts/diff_table.txt
+          
+    - name: Enviar arquivo .xlsx via Telegram
+      if: steps.monitor.outputs.has_changes == 'true'
+      env:
+        TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      run: |
+        npm install axios form-data
+        node scripts/send_telegram_file.js
