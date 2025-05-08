@@ -56,7 +56,7 @@ const PREV_DATA_FILE = path.resolve(__dirname, 'prev_table_data.txt');
       }
 
       console.log('✅ Alteração detectada na tabela.');
-      process.exit(1);
+      //process.exit(1);
     } else {
       console.log('🟢 Sem alteração nos dados da tabela.');
       process.exit(0);
