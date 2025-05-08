@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const XLSX = require('xlsx');
 
-const URL = 'https://paineisanalytics.cnj.jus.br/single/?appid=c87073c8-32b3-4b3f-911a-b25063edf692&sheet=fb006575-35ca-4ccd-928c-368edd2045ba&theme=cnj_theme&opt=ctxmenu&select=Ramo%20de%20justi%C3%A7a,Estadual&select=Ano,&select=tribunal_proces';
+const URL = 'https://paineisanalytics.cnj.jus.br/single/?appid=b532a1c7-3028-4041-80e2-9620527bd3fa&sheet=fb006575-35ca-4ccd-928c-368edd2045ba&theme=cnj_theme&opt=ctxmenu&select=Ramo%20de%20justi%C3%A7a,Trabalho&select=Ano,&select=tribunal_proces';
 
 const DOWNLOAD_DIR = path.resolve(__dirname, 'downloads');
 const XLSX_PATH = path.join(DOWNLOAD_DIR, 'tabela_atual.xlsx');
@@ -58,10 +58,17 @@ function toMapByKey(data, keyCols) {
     if (!downloadedFile) throw new Error('Arquivo .xlsx não foi baixado.');
     fs.renameSync(downloadedFile, XLSX_PATH);
 
-    const atual = XLSX.utils.sheet_to_json(XLSX.readFile(XLSX_PATH).Sheets.Sheet1);
-    const anterior = fs.existsSync(PREV_XLSX_PATH)
-      ? XLSX.utils.sheet_to_json(XLSX.readFile(PREV_XLSX_PATH).Sheets.Sheet1)
-      : [];
+    const atualBook = XLSX.readFile(XLSX_PATH);
+    const atual = XLSX.utils.sheet_to_json(atualBook.Sheets[atualBook.SheetNames[0]]);
+    
+    if (!fs.existsSync(PREV_XLSX_PATH)) {
+      fs.copyFileSync(XLSX_PATH, PREV_XLSX_PATH);
+      console.log('📥 Primeira execução - arquivo base salvo para comparação futura.');
+      process.exit(0);
+    }
+
+    const anteriorBook = XLSX.readFile(PREV_XLSX_PATH);
+    const anterior = XLSX.utils.sheet_to_json(anteriorBook.Sheets[anteriorBook.SheetNames[0]]);
 
     const diffs = [];
     const atualMap = toMapByKey(atual, ['Tribunal', 'Requisito']);
@@ -118,7 +125,6 @@ function toMapByKey(data, keyCols) {
       XLSX.utils.book_append_sheet(wb, ws, 'Diferenças');
       XLSX.writeFile(wb, DIFF_XLSX_PATH);
 
-      // TJMT apenas
       const diffs_tjmt = diffs.filter(d => d['Tribunal (Ant)'] === 'TJMT' || d['Tribunal (Atual)'] === 'TJMT');
       if (diffs_tjmt.length > 0) {
         const wb2 = XLSX.utils.book_new();
