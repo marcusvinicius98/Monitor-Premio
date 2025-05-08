@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const XLSX = require('xlsx');
 
-const URL = 'https://paineisanalytics.cnj.jus.br/single/?appid=c87073c8-32b3-4b3f-911a-b25063edf692&sheet=fb006575-35ca-4ccd-928c-368edd2045ba&theme=cnj_theme&opt=ctxmenu&select=Ramo%20de%20justi%C3%A7a,Estadual&select=Ano,&select=tribunal_process';
+const URL = 'https://paineisanalytics.cnj.jus.br/single/?appid=b532a1c7-3028-4041-80e2-9620527bd3fa&sheet=fb006575-35ca-4ccd-928c-368edd2045ba&theme=cnj_theme&opt=ctxmenu&select=Ramo%20de%20justi%C3%A7a,Trabalho&select=Ano,&select=tribunal_proces';
 
 const DOWNLOAD_DIR = path.resolve(__dirname, 'downloads');
 const LAST_CSV = path.resolve(__dirname, 'last_table.csv');
@@ -34,9 +34,7 @@ function sleep(ms) {
     await page.goto(URL, { waitUntil: 'networkidle2' });
 
     await page.waitForSelector('.btn.btn-primary', { timeout: 60000 });
-    const buttons = await page.$x("//span[contains(text(), 'Download da Tabela')]");
-    if (buttons.length === 0) throw new Error('Botão de download não encontrado.');
-    await buttons[0].click();
+    await page.click('.btn.btn-primary');
 
     let downloadedFile = null;
     for (let i = 0; i < 30; i++) {
