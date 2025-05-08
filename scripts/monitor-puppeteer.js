@@ -7,6 +7,8 @@ const URL = 'https://paineisanalytics.cnj.jus.br/single/?appid=b532a1c7-3028-404
 const HASH_FILE = path.resolve(__dirname, 'last_hash.txt');
 const DATA_FILE = path.resolve(__dirname, 'last_table_data.txt');
 const PREV_DATA_FILE = path.resolve(__dirname, 'prev_table_data.txt');
+const FLAG_FILE = path.resolve(__dirname, 'monitor_flag.txt');
+const DIFF_FILE = path.resolve(__dirname, 'diff_table.txt');
 
 (async () => {
   const browser = await puppeteer.launch({
@@ -22,7 +24,7 @@ const PREV_DATA_FILE = path.resolve(__dirname, 'prev_table_data.txt');
 
     const lines = await page.evaluate(() => {
       return Array.from(document.querySelectorAll('.qv-st-data .qv-st-value span'))
-        .map(el => el.innerText.trim())
+        .map(el => el.innerText.replace(/\s+/g, ' ').trim()) // normaliza espaços
         .filter(Boolean);
     });
 
@@ -38,29 +40,37 @@ const PREV_DATA_FILE = path.resolve(__dirname, 'prev_table_data.txt');
     const previousHash = fs.existsSync(HASH_FILE) ? fs.readFileSync(HASH_FILE, 'utf8') : null;
 
     if (currentHash !== previousHash) {
-      // salvar versão anterior
+      fs.writeFileSync(HASH_FILE, currentHash);
+      fs.writeFileSync(FLAG_FILE, 'HAS_CHANGES=1');
+
       if (fs.existsSync(DATA_FILE)) {
         fs.copyFileSync(DATA_FILE, PREV_DATA_FILE);
       }
 
-      fs.writeFileSync(HASH_FILE, currentHash);
+      const previousLines = fs.existsSync(PREV_DATA_FILE)
+        ? fs.readFileSync(PREV_DATA_FILE, 'utf8').split('\n')
+        : [];
 
-      // mostrar diferenças no log
-      if (fs.existsSync(PREV_DATA_FILE)) {
-        const previousLines = fs.readFileSync(PREV_DATA_FILE, 'utf8').split('\n');
-        const changed = lines.filter((line, idx) => line !== previousLines[idx]);
+      const changed = lines.filter((line, idx) => line !== previousLines[idx]);
+
+      if (changed.length === 0) {
+        console.log('ℹ️ Hash mudou, mas nenhuma linha foi alterada visivelmente.');
+        fs.writeFileSync(DIFF_FILE, 'Nenhuma linha visivelmente alterada.');
+      } else {
         console.log('🔍 Linhas alteradas:');
-        changed.forEach((line, i) => {
+        const diffOutput = changed.map((line, i) => {
           console.log(`Linha ${i + 1}: ${line}`);
-        });
+          return `Linha ${i + 1}: ${line}`;
+        }).join('\n');
+        fs.writeFileSync(DIFF_FILE, diffOutput);
       }
 
       console.log('✅ Alteração detectada na tabela.');
-      //process.exit(1);
     } else {
       console.log('🟢 Sem alteração nos dados da tabela.');
-      process.exit(0);
     }
+
+    process.exit(0);
 
   } catch (err) {
     console.error('❌ Erro ao processar a tabela:', err.message);
