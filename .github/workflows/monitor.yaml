@@ -62,7 +62,7 @@ jobs:
 
     - name: Salvar planilhas como artefato (inclui prev para próxima comparação)
       if: always()
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@main
       with:
         name: Diferencas_CNJ
         path: |
@@ -72,7 +72,7 @@ jobs:
 
     - name: Salvar prev_tabela para próxima execução
       if: always()
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@main
       with:
         name: prev_tabela
         path: scripts/downloads/prev_tabela.xlsx
