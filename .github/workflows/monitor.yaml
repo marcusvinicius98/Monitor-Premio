@@ -10,6 +10,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    - name: Checkout do repositório
+      uses: actions/checkout@v2
+      with:
+        clean: false  # Impede que apague o artefato restaurado
 
     - name: Restaurar artefato anterior da tabela original
       uses: dawidd6/action-download-artifact@v2
@@ -19,11 +23,6 @@ jobs:
         repo: marcusvinicius98/Monitor-Premio
         path: scripts/downloads
         search_artifacts: true
-
-    - name: Checkout do repositório
-      uses: actions/checkout@v2
-
-    
 
     - name: Instalar dependências do sistema
       run: |
@@ -61,18 +60,19 @@ jobs:
       run: |
         node scripts/send_telegram_file.js
 
-    - name: Salvar planilhas de diferença como artefato
-      if: steps.monitor.outputs.has_changes == 'true'
-      uses: actions/upload-artifact@main
+    - name: Salvar planilhas como artefato (inclui prev para próxima comparação)
+      if: always()
+      uses: actions/upload-artifact@v3
       with:
         name: Diferencas_CNJ
         path: |
+          scripts/downloads/prev_tabela.xlsx
           scripts/downloads/Diferencas_CNJ.xlsx
           scripts/downloads/Diferencas_CNJ_TJMT.xlsx
 
     - name: Salvar prev_tabela para próxima execução
       if: always()
-      uses: actions/upload-artifact@main
+      uses: actions/upload-artifact@v3
       with:
         name: prev_tabela
         path: scripts/downloads/prev_tabela.xlsx
