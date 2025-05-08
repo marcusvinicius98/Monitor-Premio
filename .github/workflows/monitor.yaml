@@ -3,7 +3,7 @@ name: Monitor CNJ
 on:
   schedule:
     - cron: '*/30 * * * *'  # Executa a cada 30 minutos
-  workflow_dispatch:
+  workflow_dispatch:        # Permite execução manual
 
 jobs:
   monitor:
@@ -25,9 +25,11 @@ jobs:
           libasound2t64
 
     - name: Instalar dependências Node.js
-      run: npm install puppeteer xlsx axios form-data
+      run: |
+        cd scripts
+        npm install
 
-    - name: Executar monitoramento com Puppeteer
+    - name: Executar monitoramento
       id: monitor
       run: |
         rm -f scripts/monitor_flag.txt
@@ -39,15 +41,15 @@ jobs:
           echo "has_changes=false" >> $GITHUB_OUTPUT
         fi
 
-    - name: Enviar mensagem de alerta
+    - name: Enviar mensagem de alerta via Telegram
       if: steps.monitor.outputs.has_changes == 'true'
       env:
         TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
         TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       run: |
-        node scripts/send_telegram.js $'🚨 Alteração detectada no painel CNJ!\n\nBaixe o arquivo em anexo para verificar as mudanças.'
+        node scripts/send_telegram.js $'🚨 Alteração detectada no painel CNJ!\n\nSegue o relatório em anexo.'
 
-    - name: Enviar arquivo .xlsx via Telegram
+    - name: Enviar arquivo XLSX via Telegram
       if: steps.monitor.outputs.has_changes == 'true'
       env:
         TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -55,11 +57,11 @@ jobs:
       run: |
         node scripts/send_telegram_file.js
 
-    - name: Salvar artefatos (último XLSX e diff)
+    - name: Salvar artefatos do workflow
       if: steps.monitor.outputs.has_changes == 'true'
-      uses: actions/upload-artifact@vmain
+      uses: actions/upload-artifact@main
       with:
-        name: relatorio-cnjs
+        name: relatorio-monitor-cnjs
         path: |
-          scripts/downloads/tabela_atual.xlsx
           scripts/diff_table.txt
+          scripts/downloads/tabela_atual.xlsx
