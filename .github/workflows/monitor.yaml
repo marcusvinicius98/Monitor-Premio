@@ -10,15 +10,20 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+
+    - name: Restaurar artefato anterior da tabela original
+      uses: dawidd6/action-download-artifact@v2
+      with:
+        name: prev_tabela
+        workflow: monitor.yaml
+        repo: marcusvinicius98/Monitor-Premio
+        path: scripts/downloads
+        search_artifacts: true
+
     - name: Checkout do repositório
       uses: actions/checkout@v2
 
-    - name: Restaurar artefato anterior da tabela original
-      uses: actions/download-artifact@main
-      with:
-        name: prev_tabela
-        path: scripts/downloads
-      continue-on-error: true
+    
 
     - name: Instalar dependências do sistema
       run: |
