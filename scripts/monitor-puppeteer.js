@@ -25,7 +25,8 @@ function sleep(ms) {
   const page = await browser.newPage();
 
   try {
-    await page._client.send('Page.setDownloadBehavior', {
+    const client = await page.target().createCDPSession();
+    await client.send('Page.setDownloadBehavior', {
       behavior: 'allow',
       downloadPath: DOWNLOAD_DIR
     });
