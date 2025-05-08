@@ -3,12 +3,13 @@ const fs = require('fs');
 const path = require('path');
 const XLSX = require('xlsx');
 
-const URL = 'https://paineisanalytics.cnj.jus.br/single/?appid=c87073c8-32b3-4b3f-911a-b25063edf692&sheet=fb006575-35ca-4ccd-928c-368edd2045ba&theme=cnj_theme&opt=ctxmenu&select=Ramo%20de%20justi%C3%A7a,Estadual&select=Ano,&select=tribunal_proces';
+const URL = 'https://paineisanalytics.cnj.jus.br/single/?appid=b532a1c7-3028-4041-80e2-9620527bd3fa&sheet=fb006575-35ca-4ccd-928c-368edd2045ba&theme=cnj_theme&opt=ctxmenu&select=Ramo%20de%20justi%C3%A7a,Trabalho&select=Ano,&select=tribunal_proces';
 
 const DOWNLOAD_DIR = path.resolve(__dirname, 'downloads');
 const XLSX_PATH = path.join(DOWNLOAD_DIR, 'tabela_atual.xlsx');
 const PREV_XLSX_PATH = path.join(DOWNLOAD_DIR, 'prev_tabela.xlsx');
 const DIFF_XLSX_PATH = path.join(DOWNLOAD_DIR, 'Diferencas_CNJ.xlsx');
+const DIFF_TJMT_PATH = path.join(DOWNLOAD_DIR, 'Diferencas_CNJ_TJMT.xlsx');
 const FLAG_FILE = path.resolve(__dirname, 'monitor_flag.txt');
 
 function sleep(ms) {
@@ -116,6 +117,16 @@ function toMapByKey(data, keyCols) {
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Diferenças');
       XLSX.writeFile(wb, DIFF_XLSX_PATH);
+
+      // TJMT apenas
+      const diffs_tjmt = diffs.filter(d => d['Tribunal (Ant)'] === 'TJMT' || d['Tribunal (Atual)'] === 'TJMT');
+      if (diffs_tjmt.length > 0) {
+        const wb2 = XLSX.utils.book_new();
+        const ws2 = XLSX.utils.json_to_sheet(diffs_tjmt);
+        XLSX.utils.book_append_sheet(wb2, ws2, 'TJMT');
+        XLSX.writeFile(wb2, DIFF_TJMT_PATH);
+      }
+
       fs.writeFileSync(FLAG_FILE, 'HAS_CHANGES=1');
       console.log('✅ Diferenças detectadas e salvas.');
     } else {
