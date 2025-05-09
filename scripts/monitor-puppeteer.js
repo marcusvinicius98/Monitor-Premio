@@ -18,7 +18,7 @@ function sleep(ms) {
 
 function toMapByKey(data, keyCols) {
   const map = new Map();
-  for (const row of personally identifiable information (PII) row) {
+  for (const row of data) {
     const key = keyCols.map(col => row[col]).join('|');
     map.set(key, row);
   }
