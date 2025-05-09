@@ -70,6 +70,17 @@ function toMapByKey(data, keyCols) {
     const anteriorBook = XLSX.readFile(PREV_XLSX_PATH);
     const anterior = XLSX.utils.sheet_to_json(anteriorBook.Sheets[anteriorBook.SheetNames[0]]);
 
+        // Adicione este log no início do script, antes da verificação do arquivo anterior
+    console.log('Verificando arquivo anterior...');
+    console.log('Caminho do arquivo anterior:', PREV_XLSX_PATH);
+    console.log('Arquivo existe?', fs.existsSync(PREV_XLSX_PATH) ? 'Sim' : 'Não');
+    
+    if (!fs.existsSync(PREV_XLSX_PATH)) {
+      console.log('📥 Primeira execução ou arquivo anterior não encontrado - arquivo base será salvo para comparação futura.');
+      fs.copyFileSync(XLSX_PATH, PREV_XLSX_PATH);
+      process.exit(0);
+    }
+
     const diffs = [];
     const atualMap = toMapByKey(atual, ['Tribunal', 'Requisito']);
     const anteriorMap = toMapByKey(anterior, ['Tribunal', 'Requisito']);
