@@ -13,9 +13,13 @@ jobs:
     - name: Checkout do repositório
       uses: actions/checkout@v2
       with:
-        clean: false  # Impede que apague o artefato restaurado
+        clean: false
+
+    - name: Criar diretório de downloads
+      run: mkdir -p scripts/downloads
 
     - name: Restaurar artefato anterior da tabela original
+      id: restore-artifact
       uses: dawidd6/action-download-artifact@v2
       with:
         name: prev_tabela
@@ -23,6 +27,14 @@ jobs:
         repo: marcusvinicius98/Monitor-Premio
         path: scripts/downloads
         search_artifacts: true
+
+    - name: Verificar se artefato foi restaurado
+      run: |
+        if [ -f scripts/downloads/prev_tabela.xlsx ]; then
+          echo "Artefato prev_tabela.xlsx encontrado"
+        else
+          echo "Artefato prev_tabela.xlsx não encontrado - primeira execução?"
+        fi
 
     - name: Instalar dependências do sistema
       run: |
