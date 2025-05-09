@@ -5,7 +5,7 @@ const XLSX = require('xlsx');
 
 const URL = 'https://paineisanalytics.cnj.jus.br/single/?appid=c87073c8-32b3-4b3f-911a-b25063edf692&sheet=fb006575-35ca-4ccd-928c-368edd2045ba&theme=cnj_theme&opt=ctxmenu&select=Ramo%20de%20justi%C3%A7a,Estadual&select=Ano,&select=tribunal_proces';
 
-const DOWNLOAD_DIR = path.resolve(__dirname, 'downloads');
+const DOWNLOAD_DIR = path.join(process.cwd(), 'scripts', 'downloads');
 const XLSX_PATH = path.join(DOWNLOAD_DIR, 'tabela_atual.xlsx');
 const PREV_XLSX_PATH = path.join(DOWNLOAD_DIR, 'prev_tabela.xlsx');
 const DIFF_XLSX_PATH = path.join(DOWNLOAD_DIR, 'Diferencas_CNJ.xlsx');
