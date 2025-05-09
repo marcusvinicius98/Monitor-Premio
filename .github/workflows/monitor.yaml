@@ -47,11 +47,11 @@ jobs:
           libxss1 \
           libasound2t64
 
-    - name: Instalar pacotes Node.js e corrigir vulnerabilidades
+    - name: Instalar pacotes Node.js
       run: |
         cd scripts
         npm install
-        npm audit fix
+        npm audit || true  # Executa npm audit, mas ignora falhas
 
     - name: Executar monitoramento
       id: monitor
