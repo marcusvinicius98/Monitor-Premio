@@ -26,7 +26,10 @@ function toMapByKey(data, keyCols) {
 }
 
 (async () => {
-  if (!fs.existsSync(DOWNLOAD_DIR)) fs.mkdirSync(DOWNLOAD_DIR);
+  // Ensure download directory exists
+  if (!fs.existsSync(DOWNLOAD_DIR)) {
+    fs.mkdirSync(DOWNLOAD_DIR, { recursive: true });
+  }
 
   const browser = await puppeteer.launch({
     headless: 'new',
@@ -35,16 +38,19 @@ function toMapByKey(data, keyCols) {
   const page = await browser.newPage();
 
   try {
+    // Set up download behavior
     const client = await page.target().createCDPSession();
     await client.send('Page.setDownloadBehavior', {
       behavior: 'allow',
       downloadPath: DOWNLOAD_DIR
     });
 
+    // Navigate to URL and download file
     await page.goto(URL, { waitUntil: 'networkidle2' });
     await page.waitForSelector('.btn.btn-primary', { timeout: 60000 });
     await page.click('.btn.btn-primary');
 
+    // Wait for download to complete
     let downloadedFile = null;
     for (let i = 0; i < 30; i++) {
       const files = fs.readdirSync(DOWNLOAD_DIR).filter(f => f.endsWith('.xlsx'));
@@ -55,43 +61,40 @@ function toMapByKey(data, keyCols) {
       await sleep(1000);
     }
 
-    if (!downloadedFile) throw new Error('Arquivo .xlsx não foi baixado.');
+    if (!downloadedFile) {
+      throw new Error('Arquivo .xlsx não foi baixado.');
+    }
     fs.renameSync(downloadedFile, XLSX_PATH);
 
+    // Read current file
     const atualBook = XLSX.readFile(XLSX_PATH);
     const atual = XLSX.utils.sheet_to_json(atualBook.Sheets[atualBook.SheetNames[0]]);
-    
+
+    // Check for previous file
+    console.log('Verificando arquivo anterior...');
+    console.log('Caminho do arquivo anterior:', PREV_XLSX_PATH);
+    console.log('Arquivo existe?', fs.existsSync(PREV_XLSX_PATH) ? 'Sim' : 'Não');
+
     if (!fs.existsSync(PREV_XLSX_PATH)) {
+      console.log('📥 Primeira execução ou arquivo anterior não encontrado - arquivo base será salvo para comparação futura.');
       fs.copyFileSync(XLSX_PATH, PREV_XLSX_PATH);
-      console.log('📥 Primeira execução - arquivo base salvo para comparação futura.');
+      await browser.close();
       process.exit(0);
     }
 
+    // Read previous file
     const anteriorBook = XLSX.readFile(PREV_XLSX_PATH);
     const anterior = XLSX.utils.sheet_to_json(anteriorBook.Sheets[anteriorBook.SheetNames[0]]);
 
     console.log('🔍 Caminho absoluto do arquivo anterior:', path.resolve(PREV_XLSX_PATH));
     console.log('📂 Conteúdo do diretório:', fs.readdirSync(DOWNLOAD_DIR).join(', '));
-    
-    if (!fs.existsSync(PREV_XLSX_PATH)) {
-      console.log('❌ Arquivo não encontrado no caminho:', PREV_XLSX_PATH);
-      fs.copyFileSync(XLSX_PATH, PREV_XLSX_PATH);
-      
-        // Adicione este log no início do script, antes da verificação do arquivo anterior
-    console.log('Verificando arquivo anterior...');
-    console.log('Caminho do arquivo anterior:', PREV_XLSX_PATH);
-    console.log('Arquivo existe?', fs.existsSync(PREV_XLSX_PATH) ? 'Sim' : 'Não');
-    
-    if (!fs.existsSync(PREV_XLSX_PATH)) {
-      console.log('📥 Primeira execução ou arquivo anterior não encontrado - arquivo base será salvo para comparação futura.');
-      fs.copyFileSync(XLSX_PATH, PREV_XLSX_PATH);
-      process.exit(0);
-    }
 
+    // Compare files
     const diffs = [];
     const atualMap = toMapByKey(atual, ['Tribunal', 'Requisito']);
     const anteriorMap = toMapByKey(anterior, ['Tribunal', 'Requisito']);
 
+    // Check for changes or removed entries
     for (const [key, ant] of anteriorMap.entries()) {
       const atu = atualMap.get(key);
       if (atu) {
@@ -121,6 +124,7 @@ function toMapByKey(data, keyCols) {
       }
     }
 
+    // Check for new entries
     for (const [key, atu] of atualMap.entries()) {
       if (!anteriorMap.has(key)) {
         diffs.push({
@@ -136,13 +140,18 @@ function toMapByKey(data, keyCols) {
       }
     }
 
+    // Handle differences
     if (diffs.length > 0) {
+      // Update previous file
       fs.copyFileSync(XLSX_PATH, PREV_XLSX_PATH);
+
+      // Save differences
       const ws = XLSX.utils.json_to_sheet(diffs);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Diferenças');
       XLSX.writeFile(wb, DIFF_XLSX_PATH);
 
+      // Save TJMT-specific differences
       const diffs_tjmt = diffs.filter(d => d['Tribunal (Ant)'] === 'TJMT' || d['Tribunal (Atual)'] === 'TJMT');
       if (diffs_tjmt.length > 0) {
         const wb2 = XLSX.utils.book_new();
@@ -151,17 +160,18 @@ function toMapByKey(data, keyCols) {
         XLSX.writeFile(wb2, DIFF_TJMT_PATH);
       }
 
+      // Set flag for changes
       fs.writeFileSync(FLAG_FILE, 'HAS_CHANGES=1');
       console.log('✅ Diferenças detectadas e salvas.');
     } else {
       console.log('✅ Sem diferenças detectadas.');
     }
 
+    await browser.close();
     process.exit(0);
   } catch (err) {
     console.error('❌ Erro:', err.message);
-    process.exit(1);
-  } finally {
     await browser.close();
+    process.exit(1);
   }
 })();
