@@ -2,101 +2,109 @@ name: Monitor CNJ VBA-Style
 
 on:
   schedule:
-    - cron: '*/30 * * * *'  # Executa a cada 30 minutos
+    - cron: '*/30 * * * *'
   workflow_dispatch:
 
 jobs:
   monitor:
-    runs-on: ubuntu-latest
-
+    runs-on: ubuntu-24.04
     steps:
-    - name: Checkout do repositório
-      uses: actions/checkout@v2
-      with:
-        clean: false
+      - name: Checkout do código
+        uses: actions/checkout@v2
+        with:
+          clean: false
 
-    - name: Criar diretório de downloads
-      run: mkdir -p scripts/downloads
+      - name: Criar diretório de downloads
+        run: mkdir -p scripts/downloads
 
-    - name: Restaurar artefato anterior da tabela original
-      id: restore-artifact
-      uses: dawidd6/action-download-artifact@v2
-      with:
-        name: prev_tabela
-        workflow: monitor.yaml
-        repo: marcusvinicius98/Monitor-Premio
-        path: scripts/downloads/
-        search_artifacts: true
+      - name: Restaurar artefato anterior da tabela original
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          name: prev_tabela
+          workflow: monitor.yaml
+          repo: marcusvinicius98/Monitor-Premio
+          path: scripts/downloads/
+          search_artifacts: true
+          workflow_conclusion: success
+          if_no_artifact_found: fail
 
-    - name: Verificar se artefato foi restaurado
-      run: |
-        if [ -f scripts/downloads/prev_tabela.xlsx ]; then
-          echo "Artefato prev_tabela.xlsx encontrado"
-        else
-          echo "Artefato prev_tabela.xlsx não encontrado - primeira execução?"
-        fi
+      - name: Verificar se artefato foi restaurado
+        run: |
+          if [ -f scripts/downloads/prev_tabela.xlsx ]; then
+            echo "Artefato prev_tabela.xlsx encontrado"
+          else
+            echo "Artefato prev_tabela.xlsx não encontrado - primeira execução?"
+          fi
 
-    - name: Instalar dependências do sistema
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-          libnss3 \
-          libatk1.0-0 \
-          libatk-bridge2.0-0 \
-          libcups2 \
-          libxss1 \
-          libasound2t64
+      - name: Instalar dependências do sistema
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libnss3 \
+            libatk1.0-0 \
+            libatk-bridge2.0-0 \
+            libcups2 \
+            libxss1 \
+            libasound2t64
 
-    - name: Instalar pacotes Node.js
-      run: |
-        cd scripts
-        npm install
-        npm audit || true  # Executa npm audit, mas ignora falhas
+      - name: Instalar dependências do Node.js
+        run: |
+          cd scripts
+          npm install
+          npm audit || true  # Executa npm audit, mas ignora falhas
 
-    - name: Executar monitoramento
-      id: monitor
-      run: |
-        rm -f scripts/monitor_flag.txt
-        node scripts/monitor-puppeteer.js
+      - name: Executar script de monitoramento
+        run: |
+          rm -f scripts/monitor_flag.txt
+          node scripts/monitor-puppeteer.js
 
-        if [ -f scripts/monitor_flag.txt ]; then
-          echo "has_changes=true" >> $GITHUB_OUTPUT
-        else
-          echo "has_changes=false" >> $GITHUB_OUTPUT
-        fi
+          if [ -f scripts/monitor_flag.txt ]; then
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          fi
+        id: monitor
 
-    - name: Enviar arquivos de diferença via Telegram
-      if: steps.monitor.outputs.has_changes == 'true'
-      env:
-        TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-      run: |
-        node scripts/send_telegram_file.js
+      - name: Upload Artefato Diferencas_CNJ
+        uses: actions/upload-artifact@main
+        with:
+          name: Diferencas_CNJ
+          path: |
+            scripts/downloads/prev_tabela.xlsx
+            scripts/downloads/Diferencas_CNJ.xlsx
+            scripts/downloads/Diferencas_CNJ_TJMT.xlsx
+          if-no-files-found: warn
 
-    - name: Notificar falha via Telegram
-      if: failure()
-      env:
-        TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-      run: |
-        curl -s -X POST https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage \
-          -d chat_id=${TELEGRAM_CHAT_ID} \
-          -d text="Erro no workflow Monitor-Premio: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+      - name: Upload Artefato Screenshot
+        uses: actions/upload-artifact@main
+        with:
+          name: Screenshots
+          path: scripts/downloads/screenshot.png
+          if-no-files-found: warn
 
-    - name: Salvar planilhas e captura de tela como artefato
-      if: always()
-      uses: actions/upload-artifact@main
-      with:
-        name: Diferencas_CNJ
-        path: |
-          scripts/downloads/prev_tabela.xlsx
-          scripts/downloads/Diferencas_CNJ.xlsx
-          scripts/downloads/Diferencas_CNJ_TJMT.xlsx
-          scripts/downloads/screenshot.png
+      - name: Upload Artefato tabela original
+        uses: actions/upload-artifact@main
+        with:
+          name: prev_tabela
+          path: scripts/downloads/prev_tabela.xlsx
+          if-no-files-found: warn
 
-    - name: Salvar prev_tabela para próxima execução
-      if: always()
-      uses: actions/upload-artifact@main
-      with:
-        name: prev_tabela
-        path: scripts/downloads/prev_tabela.xlsx
+      - name: Enviar arquivos via Telegram
+        if: steps.monitor.outputs.has_changes == 'true'
+        run: |
+          node scripts/send_telegram_file.js scripts/downloads/Diferencas_CNJ.xlsx
+          node scripts/send_telegram_file.js scripts/downloads/Diferencas_CNJ_TJMT.xlsx
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+
+      - name: Notificar falha via Telegram
+        if: failure()
+        run: |
+          MESSAGE="🚨 Workflow Monitor CNJ falhou! Verifique o log: https://github.com/marcusvinicius98/Monitor-Premio/actions/runs/${{ github.run_id }}"
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" \
+            -d text="$MESSAGE"
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
