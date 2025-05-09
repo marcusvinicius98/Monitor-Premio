@@ -70,6 +70,13 @@ function toMapByKey(data, keyCols) {
     const anteriorBook = XLSX.readFile(PREV_XLSX_PATH);
     const anterior = XLSX.utils.sheet_to_json(anteriorBook.Sheets[anteriorBook.SheetNames[0]]);
 
+    console.log('🔍 Caminho absoluto do arquivo anterior:', path.resolve(PREV_XLSX_PATH));
+    console.log('📂 Conteúdo do diretório:', fs.readdirSync(DOWNLOAD_DIR).join(', '));
+    
+    if (!fs.existsSync(PREV_XLSX_PATH)) {
+      console.log('❌ Arquivo não encontrado no caminho:', PREV_XLSX_PATH);
+      fs.copyFileSync(XLSX_PATH, PREV_XLSX_PATH);
+      
         // Adicione este log no início do script, antes da verificação do arquivo anterior
     console.log('Verificando arquivo anterior...');
     console.log('Caminho do arquivo anterior:', PREV_XLSX_PATH);
