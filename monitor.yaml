@@ -1,0 +1,78 @@
+name: Monitor CNJ VBA-Style
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'  # Executa a cada 30 minutos
+  workflow_dispatch:
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout do repositório
+      uses: actions/checkout@v2
+      with:
+        clean: false  # Impede que apague o artefato restaurado
+
+    - name: Restaurar artefato anterior da tabela original
+      uses: dawidd6/action-download-artifact@v2
+      with:
+        name: prev_tabela
+        workflow: monitor.yaml
+        repo: marcusvinicius98/Monitor-Premio
+        path: scripts/downloads
+        search_artifacts: true
+
+    - name: Instalar dependências do sistema
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          libnss3 \
+          libatk1.0-0 \
+          libatk-bridge2.0-0 \
+          libcups2 \
+          libxss1 \
+          libasound2t64
+
+    - name: Instalar pacotes Node.js
+      run: |
+        cd scripts
+        npm install
+
+    - name: Executar monitoramento
+      id: monitor
+      run: |
+        rm -f scripts/monitor_flag.txt
+        node scripts/monitor-puppeteer.js
+
+        if [ -f scripts/monitor_flag.txt ]; then
+          echo "has_changes=true" >> $GITHUB_OUTPUT
+        else
+          echo "has_changes=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Enviar arquivos de diferença via Telegram
+      if: steps.monitor.outputs.has_changes == 'true'
+      env:
+        TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      run: |
+        node scripts/send_telegram_file.js
+
+    - name: Salvar planilhas como artefato (inclui prev para próxima comparação)
+      if: always()
+      uses: actions/upload-artifact@main
+      with:
+        name: Diferencas_CNJ
+        path: |
+          scripts/downloads/prev_tabela.xlsx
+          scripts/downloads/Diferencas_CNJ.xlsx
+          scripts/downloads/Diferencas_CNJ_TJMT.xlsx
+
+    - name: Salvar prev_tabela para próxima execução
+      if: always()
+      uses: actions/upload-artifact@main
+      with:
+        name: prev_tabela
+        path: scripts/downloads/prev_tabela.xlsx
