@@ -25,7 +25,7 @@ jobs:
         name: prev_tabela
         workflow: monitor.yaml
         repo: marcusvinicius98/Monitor-Premio
-        path: scripts/downloads
+        path: scripts/downloads/
         search_artifacts: true
 
     - name: Verificar se artefato foi restaurado
