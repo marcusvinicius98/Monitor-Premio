@@ -18,15 +18,35 @@ function sleep(ms) {
 
 function toMapByKey(data, keyCols) {
   const map = new Map();
-  for (const row of data) {
+  for (const row of personally identifiable information (PII) row) {
     const key = keyCols.map(col => row[col]).join('|');
     map.set(key, row);
   }
   return map;
 }
 
+// Função para rolar a página até o final
+async function autoScroll(page) {
+  await page.evaluate(async () => {
+    await new Promise((resolve) => {
+      let totalHeight = 0;
+      const distance = 100;
+      const timer = setInterval(() => {
+        const scrollHeight = document.body.scrollHeight;
+        window.scrollBy(0, distance);
+        totalHeight += distance;
+
+        if (totalHeight >= scrollHeight) {
+          clearInterval(timer);
+          resolve();
+        }
+      }, 100);
+    });
+  });
+}
+
 (async () => {
-  // Ensure download directory exists
+  // Cria o diretório de downloads, se não existir
   if (!fs.existsSync(DOWNLOAD_DIR)) {
     fs.mkdirSync(DOWNLOAD_DIR, { recursive: true });
   }
@@ -38,24 +58,34 @@ function toMapByKey(data, keyCols) {
   const page = await browser.newPage();
 
   try {
-    // Set up download behavior
+    // Configura o comportamento de download
     const client = await page.target().createCDPSession();
     await client.send('Page.setDownloadBehavior', {
       behavior: 'allow',
       downloadPath: DOWNLOAD_DIR
     });
 
-    // Navigate to URL and download file
+    // Navega até a URL
+    console.log('Navegando para a URL:', URL);
     await page.goto(URL, { waitUntil: 'networkidle2' });
-    await page.waitForSelector('.btn.btn-primary', { timeout: 60000 });
+
+    // Rola a página para garantir que todos os elementos sejam carregados
+    console.log('Rolando a página...');
+    await autoScroll(page);
+
+    // Aguarda o seletor do botão com maior tempo de espera e verificação
+    console.log('Aguardando o seletor .btn.btn-primary...');
+    await page.waitForSelector('.btn.btn-primary', { timeout: 90000, visible: true });
+    console.log('Botão .btn.btn-primary encontrado! Clicando...');
     await page.click('.btn.btn-primary');
 
-    // Wait for download to complete
+    // Aguarda o download do arquivo
     let downloadedFile = null;
     for (let i = 0; i < 30; i++) {
       const files = fs.readdirSync(DOWNLOAD_DIR).filter(f => f.endsWith('.xlsx'));
       if (files.length > 0) {
         downloadedFile = path.join(DOWNLOAD_DIR, files[0]);
+        console.log('Arquivo baixado:', downloadedFile);
         break;
       }
       await sleep(1000);
@@ -66,11 +96,11 @@ function toMapByKey(data, keyCols) {
     }
     fs.renameSync(downloadedFile, XLSX_PATH);
 
-    // Read current file
+    // Lê o arquivo atual
     const atualBook = XLSX.readFile(XLSX_PATH);
     const atual = XLSX.utils.sheet_to_json(atualBook.Sheets[atualBook.SheetNames[0]]);
 
-    // Check for previous file
+    // Verifica se existe arquivo anterior
     console.log('Verificando arquivo anterior...');
     console.log('Caminho do arquivo anterior:', PREV_XLSX_PATH);
     console.log('Arquivo existe?', fs.existsSync(PREV_XLSX_PATH) ? 'Sim' : 'Não');
@@ -82,19 +112,19 @@ function toMapByKey(data, keyCols) {
       process.exit(0);
     }
 
-    // Read previous file
+    // Lê o arquivo anterior
     const anteriorBook = XLSX.readFile(PREV_XLSX_PATH);
     const anterior = XLSX.utils.sheet_to_json(anteriorBook.Sheets[anteriorBook.SheetNames[0]]);
 
     console.log('🔍 Caminho absoluto do arquivo anterior:', path.resolve(PREV_XLSX_PATH));
     console.log('📂 Conteúdo do diretório:', fs.readdirSync(DOWNLOAD_DIR).join(', '));
 
-    // Compare files
+    // Compara os arquivos
     const diffs = [];
     const atualMap = toMapByKey(atual, ['Tribunal', 'Requisito']);
     const anteriorMap = toMapByKey(anterior, ['Tribunal', 'Requisito']);
 
-    // Check for changes or removed entries
+    // Verifica alterações ou entradas removidas
     for (const [key, ant] of anteriorMap.entries()) {
       const atu = atualMap.get(key);
       if (atu) {
@@ -124,7 +154,7 @@ function toMapByKey(data, keyCols) {
       }
     }
 
-    // Check for new entries
+    // Verifica novas entradas
     for (const [key, atu] of atualMap.entries()) {
       if (!anteriorMap.has(key)) {
         diffs.push({
@@ -140,18 +170,18 @@ function toMapByKey(data, keyCols) {
       }
     }
 
-    // Handle differences
+    // Processa as diferenças
     if (diffs.length > 0) {
-      // Update previous file
+      // Atualiza o arquivo anterior
       fs.copyFileSync(XLSX_PATH, PREV_XLSX_PATH);
 
-      // Save differences
+      // Salva as diferenças
       const ws = XLSX.utils.json_to_sheet(diffs);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Diferenças');
       XLSX.writeFile(wb, DIFF_XLSX_PATH);
 
-      // Save TJMT-specific differences
+      // Salva diferenças específicas do TJMT
       const diffs_tjmt = diffs.filter(d => d['Tribunal (Ant)'] === 'TJMT' || d['Tribunal (Atual)'] === 'TJMT');
       if (diffs_tjmt.length > 0) {
         const wb2 = XLSX.utils.book_new();
@@ -160,7 +190,7 @@ function toMapByKey(data, keyCols) {
         XLSX.writeFile(wb2, DIFF_TJMT_PATH);
       }
 
-      // Set flag for changes
+      // Define a flag de alterações
       fs.writeFileSync(FLAG_FILE, 'HAS_CHANGES=1');
       console.log('✅ Diferenças detectadas e salvas.');
     } else {
