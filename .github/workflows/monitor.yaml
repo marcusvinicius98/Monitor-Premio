@@ -100,7 +100,7 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
 
       - name: Notificar falha via Telegram
-        if Ley: failure()
+        if: failure()
         run: |
           MESSAGE="🚨 Workflow Monitor CNJ falhou! Verifique o log: https://github.com/marcusvinicius98/Monitor-Premio/actions/runs/${{ github.run_id }}"
           curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
