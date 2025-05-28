@@ -11,7 +11,6 @@ const DIFF_XLSX_PATH = path.join(DOWNLOAD_DIR, 'Diferencas_CNJ.xlsx');
 const DIFF_TJMT_PATH = path.join(DOWNLOAD_DIR, 'Diferencas_CNJ_TJMT.xlsx');
 const FLAG_FILE = path.resolve(__dirname, 'monitor_flag.txt');
 
-// Adicionando caminhos para as tabelas com data
 const today = new Date();
 const formattedDate = `${String(today.getDate()).padStart(2, '0')}-${String(today.getMonth() + 1).padStart(2, '0')}-${today.getFullYear()}`;
 const GERAL_XLSX_PATH = path.join(DOWNLOAD_DIR, `PrêmioGeral-${formattedDate}.xlsx`);
@@ -91,10 +90,16 @@ async function autoScroll(page) {
     // Aguarda o botão específico "Download da Tabela" com texto exato
     console.log('Aguardando o botão de download "Download da Tabela"...');
     await page.waitForFunction(
-      () => document.querySelector('button.btn.btn-primary')?.innerText.includes('Download da Tabela'),
+      () => {
+        const button = document.querySelector('div.btn.btn-primary');
+        if (!button) return false;
+        const span = button.querySelector('span.ng-binding');
+        return span && span.innerText.includes('Download da Tabela');
+      },
       { timeout: 90000 }
     );
-    const downloadButton = await page.$('button.btn.btn-primary');
+
+    const downloadButton = await page.$('div.btn.btn-primary');
     if (!downloadButton) {
       throw new Error('Botão "Download da Tabela" não encontrado após espera.');
     }
@@ -199,10 +204,8 @@ async function autoScroll(page) {
         XLSX.writeFile(wb2, DIFF_TJMT_PATH);
       }
 
-      // Criar e salvar a tabela geral com data
       fs.copyFileSync(XLSX_PATH, GERAL_XLSX_PATH);
 
-      // Criar e salvar a tabela específica do TJMT
       const tjmtData = atual.filter(row => row['Tribunal'] === 'TJMT');
       if (tjmtData.length > 0) {
         const tjmtWs = XLSX.utils.json_to_sheet(tjmtData);
