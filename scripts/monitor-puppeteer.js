@@ -2,7 +2,6 @@ const puppeteer = require('puppeteer');
 const fs = require('fs');
 const path = require('path');
 const XLSX = require('xlsx');
-const sendTelegram = require('./send_telegram_file.js');
 
 const URL = 'https://paineisanalytics.cnj.jus.br/single/?appid=b532a1c7-3028-4041-80e2-9620527bd3fa&sheet=fb006575-35ca-4ccd-928c-368edd2045ba&theme=cnj_theme&opt=ctxmenu&select=Ramo%20de%20justi%C3%A7a,Trabalho&select=Ano,&select=tribunal_proces';
 
@@ -109,11 +108,7 @@ async function autoScroll(page) {
       console.log('✅ Tabela TJMT salva:', PREMIO_TJMT_PATH);
     }
 
-    // Simplesmente envia ambos para o Telegram
-    await sendTelegram.sendFile(PREMIO_GERAL_PATH);
-    if (tjmtData.length > 0) await sendTelegram.sendFile(PREMIO_TJMT_PATH);
-
-    console.log('✅ Arquivos enviados ao Telegram.');
+    console.log('✅ Arquivos gerados com sucesso.');
 
     await browser.close();
     process.exit(0);
