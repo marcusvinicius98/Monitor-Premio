@@ -25,4 +25,14 @@ async function sendFile(filePath) {
   }
 }
 
+// --- Se chamado diretamente via CLI ---
+if (require.main === module) {
+  const filePath = process.argv[2];
+  if (!filePath) {
+    console.error('❌ Nenhum arquivo especificado para envio.');
+    process.exit(1);
+  }
+  sendFile(path.resolve(filePath));
+}
+
 module.exports = { sendFile };
