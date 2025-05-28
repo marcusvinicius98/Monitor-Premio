@@ -81,7 +81,6 @@ async function autoScroll(page) {
     console.log('Tirando captura de tela...');
     await page.screenshot({ path: path.join(DOWNLOAD_DIR, 'screenshot.png'), fullPage: true });
 
-    // Aguarda o texto da seção da tabela para garantir que a página foi carregada
     console.log('Aguardando a seção da tabela...');
     await page.waitForFunction(
       () => document.querySelector('body')?.innerText.includes('Tabela com os Indicadores Relacionados à Pontua'),
@@ -89,21 +88,15 @@ async function autoScroll(page) {
     );
     console.log('Seção da tabela encontrada!');
 
-    // Seletor mais específico para o botão "Download da Tabela"
-    console.log('Aguardando o botão de download...');
-    await page.waitForSelector('button.btn.btn-primary', { timeout: 90000, visible: true });
-    const buttons = await page.$$('button.btn.btn-primary');
-    let downloadButton = null;
-    for (const button of buttons) {
-      const text = await page.evaluate(el => el.innerText, button);
-      if (text.includes('Download da Tabela')) {
-        downloadButton = button;
-        break;
-      }
-    }
-
+    // Aguarda o botão específico "Download da Tabela" com texto exato
+    console.log('Aguardando o botão de download "Download da Tabela"...');
+    await page.waitForFunction(
+      () => document.querySelector('button.btn.btn-primary')?.innerText.includes('Download da Tabela'),
+      { timeout: 90000 }
+    );
+    const downloadButton = await page.$('button.btn.btn-primary');
     if (!downloadButton) {
-      throw new Error('Botão "Download da Tabela" não encontrado.');
+      throw new Error('Botão "Download da Tabela" não encontrado após espera.');
     }
 
     console.log('Botão "Download da Tabela" encontrado! Clicando...');
