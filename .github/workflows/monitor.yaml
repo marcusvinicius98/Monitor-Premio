@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout do código
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           clean: false
 
@@ -51,7 +51,7 @@ jobs:
         run: |
           cd scripts
           npm install
-          npm audit || true  # Executa npm audit, mas ignora falhas
+          npm audit || true
 
       - name: Executar script de monitoramento
         run: |
@@ -73,6 +73,8 @@ jobs:
             scripts/downloads/prev_tabela.xlsx
             scripts/downloads/Diferencas_CNJ.xlsx
             scripts/downloads/Diferencas_CNJ_TJMT.xlsx
+            scripts/downloads/PrêmioGeral-*.xlsx
+            scripts/downloads/PrêmioTJMT-*.xlsx
           if-no-files-found: warn
 
       - name: Upload Artefato Screenshot
@@ -92,14 +94,13 @@ jobs:
       - name: Enviar arquivos via Telegram
         if: steps.monitor.outputs.has_changes == 'true'
         run: |
-          node scripts/send_telegram_file.js scripts/downloads/Diferencas_CNJ.xlsx
-          node scripts/send_telegram_file.js scripts/downloads/Diferencas_CNJ_TJMT.xlsx
+          node scripts/send_telegram_file.js
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
 
       - name: Notificar falha via Telegram
-        if: failure()
+        if Ley: failure()
         run: |
           MESSAGE="🚨 Workflow Monitor CNJ falhou! Verifique o log: https://github.com/marcusvinicius98/Monitor-Premio/actions/runs/${{ github.run_id }}"
           curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
