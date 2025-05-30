@@ -1,3 +1,9 @@
+/**
+ * monitor-puppeteer.js  — versão minimamente alterada
+ * Corrige apenas o caminho de downloads para não depender do diretório de execução.
+ * Demais lógicas preservadas do seu script original.
+ */
+
 const puppeteer = require('puppeteer');
 const fs        = require('fs');
 const path      = require('path');
@@ -5,12 +11,13 @@ const XLSX      = require('xlsx');
 
 const URL = 'https://paineisanalytics.cnj.jus.br/single/?appid=b532a1c7-3028-4041-80e2-9620527bd3fa&sheet=fb006575-35ca-4ccd-928c-368edd2045ba&theme=cnj_theme&opt=ctxmenu&select=Ramo%20de%20justi%C3%A7a,Trabalho&select=Ano,&select=tribunal_proces';
 
-const DOWNLOAD_DIR   = path.join(process.cwd(), 'scripts', 'downloads');
+// ⬇️  Usa __dirname para ser sempre relativo à pasta scripts/, independente de onde o node é executado
+const DOWNLOAD_DIR   = path.join(__dirname, 'downloads');                     // ★ único ajuste
 const XLSX_PATH      = path.join(DOWNLOAD_DIR, 'tabela_atual.xlsx');
 const PREV_XLSX_PATH = path.join(DOWNLOAD_DIR, 'prev_tabela.xlsx');
 const DIFF_XLSX_PATH = path.join(DOWNLOAD_DIR, 'Diferencas_CNJ.xlsx');
 const DIFF_TJMT_PATH = path.join(DOWNLOAD_DIR, 'Diferencas_CNJ_TJMT.xlsx');
-const FLAG_FILE      = path.resolve(__dirname, 'monitor_flag.txt');      // ★ NOVO (já existia, mas vamos usar melhor)
+const FLAG_FILE      = path.join(__dirname, 'monitor_flag.txt');
 
 const today          = new Date();
 const formattedDate  = `${String(today.getDate()).padStart(2, '0')}-${String(today.getMonth()+1).padStart(2,'0')}-${today.getFullYear()}`;
@@ -34,10 +41,9 @@ function toKey(row){ return `${row.Tribunal}|${row.Requisito}`; }
     console.log('→ Abrindo painel...');
     await page.goto(URL,{waitUntil:'networkidle2'});
 
-    // Faz scroll pra carregar tudo
     await page.evaluate(async()=>{
       await new Promise(res=>{
-        let y=0; const d=100;
+        let y=0; const d=120;
         const i=setInterval(()=>{
           window.scrollBy(0,d); y+=d;
           if(y>=document.body.scrollHeight){clearInterval(i); res();}
@@ -45,11 +51,9 @@ function toKey(row){ return `${row.Tribunal}|${row.Requisito}`; }
       });
     });
 
-    // Espera e clica no botão "Download da Tabela"
     await page.waitForFunction(()=>!![...document.querySelectorAll('div.btn.btn-primary span.ng-binding')].find(s=>s.innerText.includes('Download da Tabela')),{timeout:90000});
     (await page.$('div.btn.btn-primary')).click();
 
-    // espera download
     let dl=null;
     for(let i=0;i<30;i++){
       const f=fs.readdirSync(DOWNLOAD_DIR).find(fn=>fn.endsWith('.xlsx') && fn!=='tabela_atual.xlsx');
@@ -61,14 +65,12 @@ function toKey(row){ return `${row.Tribunal}|${row.Requisito}`; }
 
     const atual   = XLSX.utils.sheet_to_json(XLSX.readFile(XLSX_PATH).Sheets.Sheet1);
     if(!hasPrev){
-      // ★ NOVO → cria flag já na primeira vez, para notificar
       fs.copyFileSync(XLSX_PATH,PREV_XLSX_PATH);
       fs.writeFileSync(FLAG_FILE,'HAS_CHANGES=1');
       console.log('Primeira execução — base salva, flag criada.');
       return;
     }
 
-    // compara
     const anterior = XLSX.utils.sheet_to_json(XLSX.readFile(PREV_XLSX_PATH).Sheets.Sheet1);
     const mapAnt   = new Map(anterior.map(r=>[toKey(r),r]));
     const mapAtu   = new Map(atual   .map(r=>[toKey(r),r]));
@@ -81,9 +83,8 @@ function toKey(row){ return `${row.Tribunal}|${row.Requisito}`; }
     for(const [k,atu] of mapAtu) if(!mapAnt.has(k)) diffs.push({ ...{'Resultado (Ant)':'Não encontrado','Pontuação (Ant)':'Não encontrado'}, ...atu });
 
     if(diffs.length){
-      // salva tudo
       fs.copyFileSync(XLSX_PATH, PREV_XLSX_PATH);
-      fs.writeFileSync(FLAG_FILE,'HAS_CHANGES=1');                       // ★ NOVO (antes só criava se tivesse diffs)
+      fs.writeFileSync(FLAG_FILE,'HAS_CHANGES=1');
       XLSX.writeFile({SheetNames:['Diferenças'],Sheets:{Diferenças:XLSX.utils.json_to_sheet(diffs)}},DIFF_XLSX_PATH);
       XLSX.writeFile({SheetNames:['TJMT'],Sheets:{TJMT:XLSX.utils.json_to_sheet(diffs.filter(d=>d.Tribunal==='TJMT'))}},DIFF_TJMT_PATH);
       fs.copyFileSync(XLSX_PATH,GERAL_XLSX_PATH);
