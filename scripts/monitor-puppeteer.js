@@ -1,28 +1,21 @@
 /**
  * monitor-puppeteer.js
- * Faz o scraping do painel CNJ, salva arquivos xlsx, compara com anterior
- * e define a saída do passo de GitHub Actions `has_changes`.
- * Usa monitor_flag.txt como bandeira local e salva captura de tela.
+ * Faz scraping do painel CNJ, grava tabela .xlsx, compara com anterior
+ * e cria monitor_flag.txt quando há mudanças.
  */
 
 const puppeteer = require('puppeteer');
 const fs = require('fs');
 const path = require('path');
 const XLSX = require('xlsx');
-const core = require('@actions/core');
 
 const URL = 'https://paineisanalytics.cnj.jus.br/single/?appid=b532a1c7-3028-4041-80e2-9620527bd3fa&sheet=fb006575-35ca-4ccd-928c-368edd2045ba&theme=cnj_theme&opt=ctxmenu&select=Ramo%20de%20justi%C3%A7a,Trabalho&select=Ano,&select=tribunal_proces';
+
 const DOWNLOAD_DIR = path.join(process.cwd(), 'scripts', 'downloads');
 const XLSX_PATH = path.join(DOWNLOAD_DIR, 'tabela_atual.xlsx');
 const PREV_XLSX_PATH = path.join(DOWNLOAD_DIR, 'prev_tabela.xlsx');
 const DIFF_XLSX_PATH = path.join(DOWNLOAD_DIR, 'Diferencas_CNJ.xlsx');
-const DIFF_TJMT_PATH = path.join(DOWNLOAD_DIR, 'Diferencas_CNJ_TJMT.xlsx');
 const FLAG_FILE = path.resolve(__dirname, 'monitor_flag.txt');
-
-const today = new Date();
-const formattedDate = `${String(today.getDate()).padStart(2, '0')}-${String(today.getMonth() + 1).padStart(2, '0')}-${today.getFullYear()}`;
-const GERAL_XLSX_PATH = path.join(DOWNLOAD_DIR, `PrêmioGeral-${formattedDate}.xlsx`);
-const TJMT_XLSX_PATH = path.join(DOWNLOAD_DIR, `PrêmioTJMT-${formattedDate}.xlsx`);
 
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -37,7 +30,6 @@ async function autoScroll(page) {
         const scrollHeight = document.body.scrollHeight;
         window.scrollBy(0, distance);
         totalHeight += distance;
-
         if (totalHeight >= scrollHeight) {
           clearInterval(timer);
           resolve();
@@ -73,81 +65,61 @@ async function autoScroll(page) {
     console.log('Rolando a página...');
     await autoScroll(page);
 
-    console.log('Aguardando o botão "Download da Tabela"...');
+    console.log('Aguardando o botão de download...');
     await page.waitForFunction(
       () => {
-        const button = document.querySelector('div.btn.btn-primary');
-        if (!button) return false;
-        const span = button.querySelector('span.ng-binding');
-        return span && span.innerText.includes('Download da Tabela');
+        const btn = document.querySelector('div.btn.btn-primary');
+        return btn && /Download da Tabela/.test(btn.innerText);
       },
       { timeout: 90000 }
     );
 
-    const downloadButton = await page.$('div.btn.btn-primary');
-    if (!downloadButton) throw new Error('Botão "Download da Tabela" não encontrado.');
-    await downloadButton.click();
+    const button = await page.$('div.btn.btn-primary');
+    await button.click();
 
-    // espera aparecer novo arquivo .xlsx (não prev_tabela nem tabela_atual)
+    // Aguarda novo arquivo aparecer
     let downloadedFile = null;
     for (let i = 0; i < 30; i++) {
-      const files = fs.readdirSync(DOWNLOAD_DIR).filter(f =>
-        f.endsWith('.xlsx') &&
-        f !== 'tabela_atual.xlsx' &&
-        f !== 'prev_tabela.xlsx'
-      );
+      const files = fs.readdirSync(DOWNLOAD_DIR).filter(f => f.endsWith('.xlsx'));
       if (files.length) {
         downloadedFile = path.join(DOWNLOAD_DIR, files[0]);
         break;
       }
       await sleep(1000);
     }
-    if (!downloadedFile) throw new Error('Download não encontrado após 30 s.');
+    if (!downloadedFile) throw new Error('Arquivo baixado não encontrado.');
 
-    // renomeia para tabela_atual.xlsx
+    // Move/renomeia para tabela_atual.xlsx
     fs.renameSync(downloadedFile, XLSX_PATH);
-    console.log('Nova tabela salva como', XLSX_PATH);
+    console.log('Tabela atual salva:', XLSX_PATH);
 
-    // se existir tabela anterior, compara
     if (fs.existsSync(PREV_XLSX_PATH)) {
       const wbPrev = XLSX.readFile(PREV_XLSX_PATH);
       const wbCurr = XLSX.readFile(XLSX_PATH);
+      const dataPrev = XLSX.utils.sheet_to_json(wbPrev.Sheets[wbPrev.SheetNames[0]]);
+      const dataCurr = XLSX.utils.sheet_to_json(wbCurr.Sheets[wbCurr.SheetNames[0]]);
 
-      const wsPrev = wbPrev.Sheets[wbPrev.SheetNames[0]];
-      const wsCurr = wbCurr.Sheets[wbCurr.SheetNames[0]];
-
-      const jsonPrev = XLSX.utils.sheet_to_json(wsPrev);
-      const jsonCurr = XLSX.utils.sheet_to_json(wsCurr);
-
-      // diferença simples de tamanho/JSON.stringify
-      if (jsonPrev.length !== jsonCurr.length ||
-          JSON.stringify(jsonPrev) !== JSON.stringify(jsonCurr)) {
+      if (dataPrev.length !== dataCurr.length ||
+          JSON.stringify(dataPrev) !== JSON.stringify(dataCurr)) {
         hasChanges = true;
-        // salva diffs – aqui apenas copia novo arquivo
         fs.copyFileSync(XLSX_PATH, DIFF_XLSX_PATH);
-        console.log('Diferenças detectadas.');
+        console.log('Diferenças detectadas — arquivo de diferenças gerado.');
       } else {
         console.log('Nenhuma diferença detectada.');
       }
     } else {
-      // primeira execução: considera mudança
-      hasChanges = true;
-      console.log('Primeira execução, marcando mudanças.');
+      hasChanges = true; // Primeira execução
+      console.log('Primeira execução — considerando como mudança.');
     }
 
-    // move atual para prev para próxima comparação
+    // Salva atual como anterior
     fs.copyFileSync(XLSX_PATH, PREV_XLSX_PATH);
 
-    // seta flag externo
     if (hasChanges) {
       fs.writeFileSync(FLAG_FILE, 'has_changes');
     }
-
-    // GITHUB ACTION OUTPUT
-    core.setOutput('has_changes', hasChanges ? 'true' : 'false');
   } catch (err) {
-    console.error('❌ Erro no monitor:', err);
-    core.setFailed(err.message);
+    console.error('Erro durante monitoramento:', err);
     process.exitCode = 1;
   } finally {
     await browser.close();
