@@ -1,70 +1,83 @@
-const TelegramBot = require('node-telegram-bot-api');
 const fs = require('fs');
 const path = require('path');
+const FormData = require('form-data');
+const axios = require('axios');
 
-// --- CONFIGURAÇÃO ---
+// --- CONFIGURATION ---
+const today = new Date();
+const formattedDate = `${String(today.getDate()).padStart(2, '0')}-${String(today.getMonth() + 1).padStart(2, '0')}-${today.getFullYear()}`;
+
 const CONFIG = {
-    // Pega as credenciais das "Secrets" do GitHub Actions
-    TOKEN: process.env.TELEGRAM_BOT_TOKEN,
-    CHAT_ID: process.env.TELEGRAM_CHAT_ID,
-
-    // Caminhos para os arquivos que o monitor-puppeteer.js gera
-    DIFF_CNJ_PATH: path.join(process.cwd(), 'scripts', 'downloads', 'Diferencas_CNJ.xlsx'),
-    DIFF_TJMT_PATH: path.join(process.cwd(), 'scripts', 'downloads', 'Diferencas_CNJ_TJMT.xlsx')
+    DOWNLOAD_DIR: path.join(process.cwd(), 'scripts', 'downloads'),
+    FLAG_FILE: path.resolve(__dirname, 'monitor_flag.txt'),
+    DIFF_XLSX_PATH: path.join(process.cwd(), 'scripts', 'downloads', 'Diferencas_CNJ.xlsx'),
+    DIFF_TJMT_PATH: path.join(process.cwd(), 'scripts', 'downloads', 'Diferencas_CNJ_TJMT.xlsx'),
+    GERAL_XLSX_PATH: path.join(process.cwd(), 'scripts', 'downloads', `PrêmioGeral-${formattedDate}.xlsx`),
+    TJMT_XLSX_PATH: path.join(process.cwd(), 'scripts', 'downloads', `PrêmioTJMT-${formattedDate}.xlsx`),
 };
 
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
+
+// --- UTILITY FUNCTIONS ---
+
 /**
- * Função principal para enviar as notificações.
+ * Sends a file to Telegram with a specified caption.
+ * @param {string} filePath - Path to the file to send.
+ * @param {string} caption - Caption for the file.
  */
-async function sendNotification() {
-    console.log('Iniciando script de notificação do Telegram...');
-
-    // Validação das credenciais
-    if (!CONFIG.TOKEN || !CONFIG.CHAT_ID) {
-        console.error('❌ Erro: O TELEGRAM_BOT_TOKEN ou TELEGRAM_CHAT_ID não foram fornecidos.');
-        console.error('Verifique se as secrets estão configuradas corretamente no seu repositório GitHub.');
-        process.exit(1);
-    }
-
-    const bot = new TelegramBot(CONFIG.TOKEN);
-    const filesToSend = [];
-    let message = '📢 **Monitor do Prêmio CNJ detectou alterações!**\n\n';
-
-    // Verifica quais relatórios de diferença existem para serem enviados
-    if (fs.existsSync(CONFIG.DIFF_CNJ_PATH)) {
-        filesToSend.push(CONFIG.DIFF_CNJ_PATH);
-        message += '▫️ Encontrado relatório geral de diferenças.\n';
-    }
-    if (fs.existsSync(CONFIG.DIFF_TJMT_PATH)) {
-        filesToSend.push(CONFIG.DIFF_TJMT_PATH);
-        message += '▫️ Encontrado relatório de diferenças do TJMT.\n';
-    }
-    
-    if (filesToSend.length === 0) {
-        console.log('✅ Nenhum arquivo de diferença encontrado. Nenhuma notificação será enviada.');
+async function sendFileToTelegram(filePath, caption) {
+    if (!fs.existsSync(filePath)) {
+        console.log(`Arquivo ${filePath} não encontrado, pulando envio.`);
         return;
     }
 
+    const form = new FormData();
+    form.append('chat_id', TELEGRAM_CHAT_ID);
+    form.append('document', fs.createReadStream(filePath));
+    form.append('caption', caption);
+
     try {
-        console.log('Enviando mensagem e relatórios...');
-
-        // Envia a mensagem de texto
-        await bot.sendMessage(CONFIG.CHAT_ID, message, { parse_mode: 'Markdown' });
-
-        // Envia cada arquivo como um documento
-        for (const filePath of filesToSend) {
-            await bot.sendDocument(CONFIG.CHAT_ID, filePath);
-            console.log(`📄 Arquivo "${path.basename(filePath)}" enviado com sucesso.`);
-        }
-
-        console.log('✅ Notificações enviadas com sucesso!');
-        process.exit(0);
-
-    } catch (error) {
-        console.error('❌ Erro fatal ao tentar enviar a notificação:', error.response ? error.response.body : error.message);
-        process.exit(1);
+        const response = await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument`, form, {
+            headers: form.getHeaders(),
+        });
+        console.log(`Arquivo ${filePath} enviado com sucesso. Resposta:`, response.data);
+    } catch (err) {
+        console.error(`Erro ao enviar ${filePath}:`, err.message);
+        throw err;
     }
 }
 
-// Inicia a execução
-sendNotification();
+// --- MAIN EXECUTION ---
+(async () => {
+    try {
+        if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
+            throw new Error('Variáveis TELEGRAM_BOT_TOKEN e TELEGRAM_CHAT_ID devem estar definidas.');
+        }
+
+        if (!fs.existsSync(CONFIG.FLAG_FILE)) {
+            console.log('Nenhum arquivo de flag encontrado. Não há mudanças para enviar.');
+            process.exit(0);
+        }
+
+        console.log('Arquivo de flag encontrado. Enviando arquivos para o Telegram...');
+
+        const filesToSend = [
+            { path: CONFIG.DIFF_XLSX_PATH, caption: 'Relatório de Diferenças Gerais' },
+            { path: CONFIG.DIFF_TJMT_PATH, caption: 'Relatório de Diferenças TJMT' },
+            { path: CONFIG.GERAL_XLSX_PATH, caption: 'Tabela Geral Atual' },
+            { path: CONFIG.TJMT_XLSX_PATH, caption: 'Tabela TJMT Atual' },
+        ];
+
+        for (const file of filesToSend) {
+            await sendFileToTelegram(file.path, file.caption);
+        }
+
+        console.log('🚀 Envio concluído com sucesso.');
+        process.exitCode = 0;
+    } catch (err) {
+        console.error('❌ Erro fatal no script:', err.message);
+        console.error(err.stack);
+        process.exitCode = 1;
+    }
+})();
