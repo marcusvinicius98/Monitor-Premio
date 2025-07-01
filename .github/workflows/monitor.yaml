@@ -1,7 +1,8 @@
-name: Monitor CNJ VBA-Style
+name: Monitor CNJ
 
 on:
   schedule:
+    # A cada hora
     - cron: '0 * * * *'
   workflow_dispatch:
 
@@ -9,103 +10,86 @@ jobs:
   monitor:
     runs-on: ubuntu-24.04
     steps:
-      - name: Checkout do código
+      - name: 1. Checkout do código
         uses: actions/checkout@v4
-        with:
-          clean: false
 
-      - name: Criar diretório de downloads
+      - name: 2. Configurar ambiente Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: 'scripts/package.json'
+      
+      - name: 3. Criar diretório de downloads
         run: mkdir -p scripts/downloads
 
-      - name: Restaurar artefato anterior da tabela original
-        uses: dawidd6/action-download-artifact@v2
+      - name: 4. Restaurar tabela da execução anterior
+        # Usando v3 e, mais importante, 'ignore'
+        uses: dawidd6/action-download-artifact@v3
         with:
           name: prev_tabela
-          workflow: monitor.yaml
-          repo: marcusvinicius98/Monitor-Premio
-          path: scripts/downloads/
-          search_artifacts: true
-          workflow_conclusion: success
-          if_no_artifact_found: fail
+          if_no_artifact_found: ignore 
 
-      - name: Verificar se artefato foi restaurado
-        run: |
-          if [ -f scripts/downloads/prev_tabela.xlsx ]; then
-            echo "Artefato prev_tabela.xlsx encontrado"
-          else
-            echo "Artefato prev_tabela.xlsx não encontrado - primeira execução?"
-          fi
-
-      - name: Instalar dependências do sistema
+      - name: 5. Instalar dependências do sistema
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            libnss3 \
-            libatk1.0-0 \
-            libatk-bridge2.0-0 \
-            libcups2 \
-            libxss1 \
-            libasound2t64
+            libnss3 libatk1.0-0 libatk-bridge2.0-0 \
+            libcups2 libxss1 libasound2t64
 
-      - name: Instalar dependências do Node.js
+      - name: 6. Instalar dependências do Node.js
         run: |
           cd scripts
           npm install
-          npm audit || true
 
-      - name: Executar script de monitoramento
+      - name: 7. Executar o robô de monitoramento
+        id: monitor
         run: |
           rm -f scripts/monitor_flag.txt
           node scripts/monitor-puppeteer.js
-
+          
           if [ -f scripts/monitor_flag.txt ]; then
+            echo "✅ Mudanças detectadas!"
             echo "has_changes=true" >> $GITHUB_OUTPUT
           else
+            echo "✅ Nenhuma mudança detectada."
             echo "has_changes=false" >> $GITHUB_OUTPUT
           fi
-        id: monitor
 
-      - name: Upload Artefato Diferencas_CNJ
-        uses: actions/upload-artifact@main
+      - name: 8. Enviar notificação via Telegram (se houver mudanças)
+        if: steps.monitor.outputs.has_changes == 'true'
+        run: node scripts/send_telegram_file.js
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+
+      - name: 9. Upload dos relatórios e screenshots (se houver mudanças)
+        if: steps.monitor.outputs.has_changes == 'true'
+        uses: actions/upload-artifact@v4
         with:
-          name: Diferencas_CNJ
+          name: Relatorios-CNJ-${{ github.run_number }}
           path: |
-            scripts/downloads/prev_tabela.xlsx
             scripts/downloads/Diferencas_CNJ.xlsx
             scripts/downloads/Diferencas_CNJ_TJMT.xlsx
             scripts/downloads/PrêmioGeral-*.xlsx
             scripts/downloads/PrêmioTJMT-*.xlsx
+            scripts/downloads/screenshot_initial_load.png
           if-no-files-found: warn
 
-      - name: Upload Artefato Screenshot
-        uses: actions/upload-artifact@main
+      - name: 10. Upload da nova tabela base para a próxima execução
+        # Este passo sempre roda para garantir que a próxima execução tenha uma base para comparar
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          name: Screenshots
-          path: scripts/downloads/screenshot.png
-          if-no-files-found: warn
-
-      - name: Upload Artefato tabela original
-        uses: actions/upload-artifact@main
-        with:
+          # O nome 'prev_tabela' é fundamental, pois é o que o passo 4 procura
           name: prev_tabela
           path: scripts/downloads/prev_tabela.xlsx
-          if-no-files-found: warn
+          if-no-files-found: fail
 
-      - name: Enviar arquivos via Telegram
-        if: steps.monitor.outputs.has_changes == 'true'
-        run: |
-          node scripts/send_telegram_file.js
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-
-      - name: Notificar falha via Telegram
+      - name: 11. Notificar falha via Telegram
         if: failure()
         run: |
-          MESSAGE="🚨 Workflow Monitor CNJ falhou! Verifique o log: https://github.com/marcusvinicius98/Monitor-Premio/actions/runs/${{ github.run_id }}"
+          MESSAGE="🚨 Workflow Monitor CNJ falhou! Verifique o log: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
             -d chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" \
             -d text="$MESSAGE"
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
