@@ -14,3 +14,5 @@ Este projeto monitora alterações no painel do CNJ e envia notificações via T
 - O workflow é executado a cada 30 minutos
 - O script baixa o conteúdo da página e compara com a versão anterior
 - Se houver alterações, envia uma notificação via Telegram
+
+- 
