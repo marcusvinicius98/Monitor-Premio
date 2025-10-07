@@ -161,61 +161,39 @@ async function selectRamoEstadual(page) {
         
         console.log('✅ Opção "Estadual" encontrada. Clicando...');
         
-        // Click on "Estadual" option - ONLY "Estadual", NOT "Militar Estadual"
+        // Click on "Estadual" option - simple and direct
         const clicked = await page.evaluate(() => {
-            // Method 1: Try aria-label with exact "Estadual" (not Militar Estadual)
-            let rows = Array.from(document.querySelectorAll('[role="row"]'));
-            let estadualRow = rows.find(row => {
-                const label = row.getAttribute('aria-label');
-                if (!label) return false;
-                
-                // Must contain "Estadual" but NOT "Militar"
-                const hasEstadual = label.includes('Estadual');
-                const hasMilitar = label.toLowerCase().includes('militar');
-                
-                return hasEstadual && !hasMilitar;
+            const rows = Array.from(document.querySelectorAll('[role="row"]'));
+            
+            // Find row with exact text "Estadual"
+            const estadualRow = rows.find(row => {
+                const spans = row.querySelectorAll('span');
+                return Array.from(spans).some(span => {
+                    const text = span.textContent.trim();
+                    return text === 'Estadual';
+                });
             });
-            
-            // Method 2: If not found, try finding by text content (exact match)
-            if (!estadualRow) {
-                rows = Array.from(document.querySelectorAll('[role="row"]'));
-                estadualRow = rows.find(row => {
-                    const spans = row.querySelectorAll('span');
-                    return Array.from(spans).some(span => {
-                        const text = span.textContent.trim();
-                        return text === 'Estadual' || text === 'Justiça Estadual';
-                    });
-                });
-            }
-            
-            // Method 3: Try finding by title attribute (exact match)
-            if (!estadualRow) {
-                const cells = Array.from(document.querySelectorAll('.RowColumn-cell'));
-                const estadualCell = cells.find(cell => {
-                    const title = cell.getAttribute('title');
-                    return title === 'Estadual' || title === 'Justiça Estadual';
-                });
-                if (estadualCell) {
-                    estadualRow = estadualCell.closest('[role="row"]');
-                }
-            }
             
             if (estadualRow) {
                 estadualRow.click();
-                return { success: true, method: 'found' };
+                return { success: true };
             }
             
-            // Return debug info if not found
-            const allLabels = rows.map(r => r.getAttribute('aria-label')).filter(Boolean);
-            return { success: false, labels: allLabels };
+            // Return all available options for debug
+            const allOptions = rows.map(r => {
+                const spans = r.querySelectorAll('span');
+                return Array.from(spans).map(s => s.textContent.trim()).join(' ');
+            }).filter(Boolean);
+            
+            return { success: false, options: allOptions };
         });
         
         if (!clicked.success) {
-            console.error('Debug - Labels encontrados:', clicked.labels);
-            throw new Error('Não foi possível clicar na opção "Estadual". Labels disponíveis: ' + JSON.stringify(clicked.labels));
+            console.error('Debug - Opções encontradas:', clicked.options);
+            throw new Error('Não foi possível clicar na opção "Estadual". Opções disponíveis: ' + JSON.stringify(clicked.options));
         }
         
-        console.log('✅ Clique realizado com sucesso em "Estadual" (sem Militar)!');
+        console.log('✅ Clicado em "Estadual"!');
         
         console.log('⏳ Aguardando seleção...');
         await sleep(1500);
