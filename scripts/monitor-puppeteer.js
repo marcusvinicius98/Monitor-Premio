@@ -8,7 +8,7 @@ const today = new Date();
 const formattedDate = `${String(today.getDate()).padStart(2, '0')}-${String(today.getMonth() + 1).padStart(2, '0')}-${today.getFullYear()}`;
 
 const CONFIG = {
-    URL: 'https://paineisanalytics.cnj.jus.br/single/?appid=b532a1c7-3028-4041-80e2-9620527bd3fa&sheet=fb006575-35ca-4ccd-928c-368edd2045ba&theme=cnj_theme&opt=ctxmenu&select=Ramo%20de%2Estadual&select=Ano,&select=tribunal_proces',
+    URL: 'https://paineisanalytics.cnj.jus.br/single/?appid=b532a1c7-3028-4041-80e2-9620527bd3fa&sheet=fb006575-35ca-4ccd-928c-368edd2045ba',
     DOWNLOAD_DIR: path.join(process.cwd(), 'scripts', 'downloads'), // Downloads relative to where script is run
     XLSX_PATH: path.join(process.cwd(), 'scripts', 'downloads', 'tabela_atual.xlsx'),
     PREV_XLSX_PATH: path.join(process.cwd(), 'scripts', 'downloads', 'prev_tabela.xlsx'),
@@ -129,7 +129,7 @@ async function launchBrowserAndPage() {
 }
 
 /**
- * Navigates to the URL, configures downloads, scrolls, and takes a screenshot.
+ * Navigates to the URL, selects the filter, configures downloads, scrolls, and takes a screenshot.
  * @param {import('puppeteer').Page} page - The Puppeteer page object.
  */
 async function navigateAndPreparePage(page) {
@@ -141,12 +141,36 @@ async function navigateAndPreparePage(page) {
 
     console.log('Navegando para a URL:', CONFIG.URL);
     await page.goto(CONFIG.URL, { waitUntil: 'networkidle2', timeout: CONFIG.PAGE_TIMEOUT });
+    
+    // --- SELEÇÃO DO FILTRO ---
+
+    console.log('Aguardando e clicando no filtro "Ramo"...');
+    const ramoFilterSelector = 'div[title="Ramo"]';
+    await page.waitForSelector(ramoFilterSelector, { timeout: CONFIG.PAGE_TIMEOUT });
+    await page.click(ramoFilterSelector);
+
+    console.log('Aguardando e clicando na opção "Estadual"...');
+    // CORREÇÃO APLICADA AQUI:
+    const estadualOptionSelector = 'li[title="Estadual"]'; 
+    await page.waitForSelector(estadualOptionSelector, { timeout: CONFIG.PAGE_TIMEOUT });
+    await page.click(estadualOptionSelector);
+
+    console.log('Aguardando e clicando no botão de confirmação da seleção...');
+    const confirmButtonSelector = 'button[data-tid="selection-toolbar-confirm"]';
+    await page.waitForSelector(confirmButtonSelector, { timeout: CONFIG.PAGE_TIMEOUT });
+    await page.click(confirmButtonSelector);
+
+    console.log('Aguardando a página recarregar após a aplicação do filtro...');
+    await page.waitForTimeout(5000); // Espera 5 segundos para a atualização dos dados
+    
+    // --- FIM DA SELEÇÃO DO FILTRO ---
 
     await autoScroll(page);
 
-    console.log('Tirando captura de tela inicial...');
-    await page.screenshot({ path: path.join(CONFIG.DOWNLOAD_DIR, 'screenshot_initial_load.png'), fullPage: true });
+    console.log('Tirando captura de tela após aplicar o filtro...');
+    await page.screenshot({ path: path.join(CONFIG.DOWNLOAD_DIR, 'screenshot_after_filter.png'), fullPage: true });
 }
+
 
 /**
  * Waits for the table content and downloads the XLSX file.
@@ -193,10 +217,8 @@ async function downloadTableFile(page) {
             .filter(f => f.endsWith('.xlsx') && !f.startsWith('prev_tabela') && f !== path.basename(CONFIG.XLSX_PATH) && !f.includes(`PrêmioGeral-`) && !f.includes(`PrêmioTJMT-`)); // Avoid known files
 
         if (files.length > 0) {
-            // Assume the most recently modified file is the one we want, if multiple unexpected .xlsx files appear.
-            // For simplicity, taking the first one found.
             const foundFile = files.map(f => ({ name: f, time: fs.statSync(path.join(CONFIG.DOWNLOAD_DIR, f)).mtimeMs }))
-                                   .sort((a, b) => b.time - a.time)[0].name;
+                                     .sort((a, b) => b.time - a.time)[0].name;
             downloadedFile = path.join(CONFIG.DOWNLOAD_DIR, foundFile);
             console.log('Arquivo baixado detectado:', downloadedFile);
             break;
@@ -233,7 +255,6 @@ function findDifferences(currentData, previousData) {
     for (const [key, prevRow] of previousMap.entries()) {
         const currentRow = currentMap.get(key);
         if (currentRow) {
-            // Check if specified value columns have changed
             const hasChanged = CONFIG.VALUE_COLUMNS_FOR_DIFF.some(col => prevRow[col] !== currentRow[col]);
             if (hasChanged) {
                 differences.push({
@@ -373,8 +394,6 @@ function handleDetectedDifferences(differences, currentData) {
     } catch (err) {
         console.error('❌ Erro fatal no script:', err.message);
         console.error(err.stack); // Log stack for detailed debugging
-        // Optionally, take a screenshot on error if page is available
-        // if (page) await page.screenshot({ path: path.join(CONFIG.DOWNLOAD_DIR, 'error_screenshot.png') });
         process.exitCode = 1;
     } finally {
         if (browser) {
@@ -382,8 +401,5 @@ function handleDetectedDifferences(differences, currentData) {
             await browser.close();
         }
         console.log(`Script finalizado com código de saída: ${process.exitCode === undefined ? 0 : process.exitCode}.`);
-        // process.exit() can be called here if explicit termination is always needed,
-        // but setting process.exitCode and allowing natural exit is often cleaner.
-        // For scripts, explicit exit is common: process.exit(process.exitCode === undefined ? 0 : process.exitCode);
     }
 })();
