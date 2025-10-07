@@ -161,70 +161,56 @@ async function selectRamoEstadual(page) {
         
         console.log('✅ Opção "Estadual" encontrada. Tentando clicar...');
         
-        // Try multiple click methods for better reliability
-        const clickResult = await page.evaluate(() => {
+        // Find the row selector for "Estadual" (not "Militar Estadual")
+        const estadualSelector = await page.evaluate(() => {
             const rows = Array.from(document.querySelectorAll('[role="row"]'));
             
-            // Find row with exact text "Estadual" (not Militar Estadual)
-            const estadualRow = rows.find(row => {
+            for (let i = 0; i < rows.length; i++) {
+                const row = rows[i];
                 const spans = row.querySelectorAll('span');
                 const texts = Array.from(spans).map(s => s.textContent.trim());
+                
                 // Must have "Estadual" but not "Militar"
-                return texts.some(text => text === 'Estadual') && 
-                       !texts.some(text => text.includes('Militar'));
-            });
-            
-            if (!estadualRow) {
-                const allOptions = rows.map(r => {
-                    const spans = r.querySelectorAll('span');
-                    return Array.from(spans).map(s => s.textContent.trim()).join(' ');
-                }).filter(Boolean);
-                return { success: false, error: 'not_found', options: allOptions };
-            }
-            
-            // Get current selection before clicking
-            const wasSelected = estadualRow.getAttribute('aria-selected') === 'true';
-            
-            // Try multiple click methods
-            try {
-                // Method 1: Click the row directly
-                estadualRow.click();
+                const hasEstadual = texts.some(text => text === 'Estadual');
+                const hasMilitar = texts.some(text => text.includes('Militar'));
                 
-                // Method 2: Dispatch mouse events for better compatibility
-                const clickEvent = new MouseEvent('click', {
-                    view: window,
-                    bubbles: true,
-                    cancelable: true
-                });
-                estadualRow.dispatchEvent(clickEvent);
-                
-                // Method 3: Click on the cell inside
-                const cell = estadualRow.querySelector('.RowColumn-cell');
-                if (cell) {
-                    cell.click();
+                if (hasEstadual && !hasMilitar) {
+                    // Generate unique selector for this specific row
+                    const ariaLabel = row.getAttribute('aria-label');
+                    if (ariaLabel) {
+                        return `[role="row"][aria-label="${ariaLabel}"]`;
+                    }
+                    // Fallback: use data-n attribute
+                    const dataN = row.getAttribute('data-n');
+                    if (dataN) {
+                        return `[role="row"][data-n="${dataN}"]`;
+                    }
                 }
-                
-                return { 
-                    success: true, 
-                    wasSelected: wasSelected,
-                    ariaSelected: estadualRow.getAttribute('aria-selected')
-                };
-            } catch (e) {
-                return { success: false, error: e.message };
             }
+            
+            // Return all available options for debugging
+            const allOptions = rows.map(r => {
+                const spans = r.querySelectorAll('span');
+                const label = r.getAttribute('aria-label');
+                return { label, texts: Array.from(spans).map(s => s.textContent.trim()) };
+            }).filter(o => o.texts.length > 0);
+            
+            return { error: 'not_found', options: allOptions };
         });
         
-        if (!clickResult.success) {
-            console.error('❌ Erro ao clicar:', clickResult.error);
-            if (clickResult.options) {
-                console.error('Debug - Opções encontradas:', clickResult.options);
-            }
-            throw new Error('Não foi possível clicar na opção "Estadual"');
+        if (typeof estadualSelector === 'object' && estadualSelector.error) {
+            console.error('❌ Não foi possível encontrar "Estadual"');
+            console.error('Debug - Opções:', JSON.stringify(estadualSelector.options, null, 2));
+            throw new Error('Opção "Estadual" não encontrada');
         }
         
+        console.log(`✅ Seletor encontrado: ${estadualSelector}`);
+        console.log('🖱️  Clicando usando page.click() nativo do Puppeteer...');
+        
+        // Use Puppeteer's native click - this triggers proper browser events
+        await page.click(estadualSelector);
+        
         console.log('✅ Clique executado!');
-        console.log(`   Estado anterior: ${clickResult.wasSelected ? 'Selecionado' : 'Não selecionado'}`);
-        console.log(`   Estado após clique: aria-selected="${clickResult.ariaSelected}"`);
         
         console.log('⏳ Aguardando seleção...');
         await sleep(2000);
