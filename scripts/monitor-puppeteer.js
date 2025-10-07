@@ -9,21 +9,21 @@ const formattedDate = `${String(today.getDate()).padStart(2, '0')}-${String(toda
 
 const CONFIG = {
     URL: 'https://paineisanalytics.cnj.jus.br/single/?appid=b532a1c7-3028-4041-80e2-9620527bd3fa&sheet=fb006575-35ca-4ccd-928c-368edd2045ba',
-    DOWNLOAD_DIR: path.join(process.cwd(), 'scripts', 'downloads'), // Downloads relative to where script is run
+    DOWNLOAD_DIR: path.join(process.cwd(), 'scripts', 'downloads'),
     XLSX_PATH: path.join(process.cwd(), 'scripts', 'downloads', 'tabela_atual.xlsx'),
     PREV_XLSX_PATH: path.join(process.cwd(), 'scripts', 'downloads', 'prev_tabela.xlsx'),
     DIFF_XLSX_PATH: path.join(process.cwd(), 'scripts', 'downloads', 'Diferencas_CNJ.xlsx'),
     DIFF_TJMT_PATH: path.join(process.cwd(), 'scripts', 'downloads', 'Diferencas_CNJ_TJMT.xlsx'),
-    FLAG_FILE: path.resolve(__dirname, 'monitor_flag.txt'), // Flag file relative to this script's location
+    FLAG_FILE: path.resolve(__dirname, 'monitor_flag.txt'),
     GERAL_XLSX_PATH: path.join(process.cwd(), 'scripts', 'downloads', `PrêmioGeral-${formattedDate}.xlsx`),
     TJMT_XLSX_PATH: path.join(process.cwd(), 'scripts', 'downloads', `PrêmioTJMT-${formattedDate}.xlsx`),
-    PAGE_TIMEOUT: 90000, // 90 seconds for page operations
-    DOWNLOAD_TIMEOUT_MS: 30000, // 30 seconds for file download check
-    DOWNLOAD_CHECK_INTERVAL_MS: 1000, // Check for download every 1 second
+    PAGE_TIMEOUT: 120000, // 120 seconds
+    DOWNLOAD_TIMEOUT_MS: 30000,
+    DOWNLOAD_CHECK_INTERVAL_MS: 1000,
     TABLE_INDICATOR_TEXT: 'Tabela com os Indicadores Relacionados à Pontua',
     DOWNLOAD_BUTTON_TEXT: 'Download da Tabela',
-    DOWNLOAD_BUTTON_SELECTOR: 'div.btn.btn-primary', // Selector for the button element
-    DOWNLOAD_BUTTON_SPAN_SELECTOR: 'span.ng-binding', // Selector for the span containing text within the button
+    DOWNLOAD_BUTTON_SELECTOR: 'div.btn.btn-primary',
+    DOWNLOAD_BUTTON_SPAN_SELECTOR: 'span.ng-binding',
     KEY_COLUMNS_FOR_DIFF: ['Tribunal', 'Requisito'],
     VALUE_COLUMNS_FOR_DIFF: ['Pontuação', 'Resultado'],
     TJMT_IDENTIFIER: 'TJMT'
@@ -31,21 +31,10 @@ const CONFIG = {
 
 // --- UTILITY FUNCTIONS ---
 
-/**
- * Pauses execution for a specified number of milliseconds.
- * @param {number} ms - The number of milliseconds to sleep.
- * @returns {Promise<void>}
- */
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-/**
- * Converts an array of objects to a map, using specified key columns to generate a unique key.
- * @param {Array<Object>} data - The array of data objects.
- * @param {Array<string>} keyCols - The column names to use for generating the map key.
- * @returns {Map<string, Object>}
- */
 function toMapByKey(data, keyCols) {
   const map = new Map();
   for (const row of data) {
@@ -55,22 +44,11 @@ function toMapByKey(data, keyCols) {
   return map;
 }
 
-/**
- * Reads an XLSX file and returns the data from the first sheet as JSON.
- * @param {string} filePath - The path to the XLSX file.
- * @returns {Array<Object>}
- */
 function readXlsxSheet(filePath) {
     const workbook = XLSX.readFile(filePath);
     return XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
 }
 
-/**
- * Writes data to an XLSX file.
- * @param {string} filePath - The path to the XLSX file to be created.
- * @param {Array<Object>} data - The data to write.
- * @param {string} sheetName - The name of the sheet.
- */
 function writeXlsxFile(filePath, data, sheetName) {
     const worksheet = XLSX.utils.json_to_sheet(data);
     const workbook = XLSX.utils.book_new();
@@ -81,10 +59,6 @@ function writeXlsxFile(filePath, data, sheetName) {
 
 // --- PUPPETEER HELPER FUNCTIONS ---
 
-/**
- * Scrolls the page to the bottom to ensure all dynamic content is loaded.
- * @param {import('puppeteer').Page} page - The Puppeteer page object.
- */
 async function autoScroll(page) {
   console.log('Rolando a página...');
   await page.evaluate(async () => {
@@ -99,14 +73,11 @@ async function autoScroll(page) {
           clearInterval(timer);
           resolve();
         }
-      }, 100); // Scroll every 100ms
+      }, 100);
     });
   });
 }
 
-/**
- * Sets up download directories.
- */
 function setupDirectories() {
     if (!fs.existsSync(CONFIG.DOWNLOAD_DIR)) {
         console.log(`Criando diretório de download em: ${CONFIG.DOWNLOAD_DIR}`);
@@ -114,15 +85,11 @@ function setupDirectories() {
     }
 }
 
-/**
- * Launches Puppeteer browser and a new page.
- * @returns {Promise<{browser: import('puppeteer').Browser, page: import('puppeteer').Page}>}
- */
 async function launchBrowserAndPage() {
     console.log('Iniciando o navegador...');
     const browser = await puppeteer.launch({
-        headless: 'new', // Use the new headless mode
-        args: ['--no-sandbox', '--disable-setuid-sandbox'] // Common args for CI environments
+        headless: 'new',
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
     });
     const page = await browser.newPage();
     return { browser, page };
@@ -142,15 +109,22 @@ async function navigateAndPreparePage(page) {
     console.log('Navegando para a URL:', CONFIG.URL);
     await page.goto(CONFIG.URL, { waitUntil: 'networkidle2', timeout: CONFIG.PAGE_TIMEOUT });
     
-    // --- SELEÇÃO DO FILTRO ---
+    console.log('Aguardando a página carregar completamente (verificando pela tabela)...');
+    await page.waitForFunction(
+        (text) => document.querySelector('body')?.innerText.includes(text),
+        { timeout: CONFIG.PAGE_TIMEOUT },
+        CONFIG.TABLE_INDICATOR_TEXT
+    );
+    console.log('Página carregada! Prosseguindo para a seleção de filtro.');
 
+    // --- SELEÇÃO DO FILTRO ---
     console.log('Aguardando e clicando no filtro "Ramo"...');
-    const ramoFilterSelector = 'div[title="Ramo"]';
+    // CORREÇÃO APLICADA AQUI: Usando o seletor data-testid que é mais estável.
+    const ramoFilterSelector = 'div[data-testid="collapsed-title-Ramo"]';
     await page.waitForSelector(ramoFilterSelector, { timeout: CONFIG.PAGE_TIMEOUT });
     await page.click(ramoFilterSelector);
 
     console.log('Aguardando e clicando na opção "Estadual"...');
-    // CORREÇÃO APLICADA AQUI:
     const estadualOptionSelector = 'li[title="Estadual"]'; 
     await page.waitForSelector(estadualOptionSelector, { timeout: CONFIG.PAGE_TIMEOUT });
     await page.click(estadualOptionSelector);
@@ -161,7 +135,7 @@ async function navigateAndPreparePage(page) {
     await page.click(confirmButtonSelector);
 
     console.log('Aguardando a página recarregar após a aplicação do filtro...');
-    await page.waitForTimeout(5000); // Espera 5 segundos para a atualização dos dados
+    await sleep(5000);
     
     // --- FIM DA SELEÇÃO DO FILTRO ---
 
@@ -172,11 +146,6 @@ async function navigateAndPreparePage(page) {
 }
 
 
-/**
- * Waits for the table content and downloads the XLSX file.
- * @param {import('puppeteer').Page} page - The Puppeteer page object.
- * @returns {Promise<string>} - Path to the downloaded file.
- */
 async function downloadTableFile(page) {
     console.log('Aguardando a seção da tabela...');
     await page.waitForFunction(
@@ -208,13 +177,12 @@ async function downloadTableFile(page) {
     console.log(`Botão "${CONFIG.DOWNLOAD_BUTTON_TEXT}" encontrado! Clicando...`);
     await downloadButton.click();
 
-    // Wait for the file to be downloaded
     let downloadedFile = null;
     console.log(`Verificando o diretório de downloads (${CONFIG.DOWNLOAD_DIR}) por novos arquivos .xlsx...`);
     const startTime = Date.now();
     while (Date.now() - startTime < CONFIG.DOWNLOAD_TIMEOUT_MS) {
         const files = fs.readdirSync(CONFIG.DOWNLOAD_DIR)
-            .filter(f => f.endsWith('.xlsx') && !f.startsWith('prev_tabela') && f !== path.basename(CONFIG.XLSX_PATH) && !f.includes(`PrêmioGeral-`) && !f.includes(`PrêmioTJMT-`)); // Avoid known files
+            .filter(f => f.endsWith('.xlsx') && !f.startsWith('prev_tabela') && f !== path.basename(CONFIG.XLSX_PATH) && !f.includes(`PrêmioGeral-`) && !f.includes(`PrêmioTJMT-`));
 
         if (files.length > 0) {
             const foundFile = files.map(f => ({ name: f, time: fs.statSync(path.join(CONFIG.DOWNLOAD_DIR, f)).mtimeMs }))
@@ -230,7 +198,6 @@ async function downloadTableFile(page) {
         throw new Error('Arquivo .xlsx não foi baixado ou não foi detectado no tempo esperado.');
     }
     
-    // Rename the generically downloaded file to our standard "tabela_atual.xlsx"
     fs.renameSync(downloadedFile, CONFIG.XLSX_PATH);
     console.log(`Arquivo renomeado para: ${CONFIG.XLSX_PATH}`);
     return CONFIG.XLSX_PATH;
@@ -239,97 +206,57 @@ async function downloadTableFile(page) {
 
 // --- DATA PROCESSING AND COMPARISON FUNCTIONS ---
 
-/**
- * Compares current data with previous data to find differences.
- * @param {Array<Object>} currentData - The current dataset.
- * @param {Array<Object>} previousData - The previous dataset.
- * @returns {Array<Object>} - An array of differences.
- */
 function findDifferences(currentData, previousData) {
     console.log('Comparando dados atuais e anteriores...');
     const differences = [];
     const currentMap = toMapByKey(currentData, CONFIG.KEY_COLUMNS_FOR_DIFF);
     const previousMap = toMapByKey(previousData, CONFIG.KEY_COLUMNS_FOR_DIFF);
 
-    // Check for changes and deletions
     for (const [key, prevRow] of previousMap.entries()) {
         const currentRow = currentMap.get(key);
         if (currentRow) {
             const hasChanged = CONFIG.VALUE_COLUMNS_FOR_DIFF.some(col => prevRow[col] !== currentRow[col]);
             if (hasChanged) {
                 differences.push({
-                    'Tribunal (Ant)': prevRow['Tribunal'],
-                    'Requisito (Ant)': prevRow['Requisito'],
-                    'Resultado (Ant)': prevRow['Resultado'],
-                    'Pontuação (Ant)': prevRow['Pontuação'],
-                    'Tribunal (Atual)': currentRow['Tribunal'],
-                    'Requisito (Atual)': currentRow['Requisito'],
-                    'Resultado (Atual)': currentRow['Resultado'],
-                    'Pontuação (Atual)': currentRow['Pontuação'],
+                    'Tribunal (Ant)': prevRow['Tribunal'], 'Requisito (Ant)': prevRow['Requisito'], 'Resultado (Ant)': prevRow['Resultado'], 'Pontuação (Ant)': prevRow['Pontuação'],
+                    'Tribunal (Atual)': currentRow['Tribunal'], 'Requisito (Atual)': currentRow['Requisito'], 'Resultado (Atual)': currentRow['Resultado'], 'Pontuação (Atual)': currentRow['Pontuação'],
                 });
             }
-        } else { // Row deleted
+        } else {
             differences.push({
-                'Tribunal (Ant)': prevRow['Tribunal'],
-                'Requisito (Ant)': prevRow['Requisito'],
-                'Resultado (Ant)': prevRow['Resultado'],
-                'Pontuação (Ant)': prevRow['Pontuação'],
-                'Tribunal (Atual)': 'Não encontrado',
-                'Requisito (Atual)': 'Não encontrado',
-                'Resultado (Atual)': 'Não encontrado',
-                'Pontuação (Atual)': 'Não encontrado',
+                'Tribunal (Ant)': prevRow['Tribunal'], 'Requisito (Ant)': prevRow['Requisito'], 'Resultado (Ant)': prevRow['Resultado'], 'Pontuação (Ant)': prevRow['Pontuação'],
+                'Tribunal (Atual)': 'Não encontrado', 'Requisito (Atual)': 'Não encontrado', 'Resultado (Atual)': 'Não encontrado', 'Pontuação (Atual)': 'Não encontrado',
             });
         }
     }
 
-    // Check for additions
     for (const [key, currentRow] of currentMap.entries()) {
         if (!previousMap.has(key)) {
             differences.push({
-                'Tribunal (Ant)': 'Não encontrado',
-                'Requisito (Ant)': 'Não encontrado',
-                'Resultado (Ant)': 'Não encontrado',
-                'Pontuação (Ant)': 'Não encontrado',
-                'Tribunal (Atual)': currentRow['Tribunal'],
-                'Requisito (Atual)': currentRow['Requisito'],
-                'Resultado (Atual)': currentRow['Resultado'],
-                'Pontuação (Atual)': currentRow['Pontuação'],
+                'Tribunal (Ant)': 'Não encontrado', 'Requisito (Ant)': 'Não encontrado', 'Resultado (Ant)': 'Não encontrado', 'Pontuação (Ant)': 'Não encontrado',
+                'Tribunal (Atual)': currentRow['Tribunal'], 'Requisito (Atual)': currentRow['Requisito'], 'Resultado (Atual)': currentRow['Resultado'], 'Pontuação (Atual)': currentRow['Pontuação'],
             });
         }
     }
     return differences;
 }
 
-/**
- * Handles the case where differences are found: saves reports and updates files.
- * @param {Array<Object>} differences - The array of differences.
- * @param {Array<Object>} currentData - The current full dataset.
- */
 function handleDetectedDifferences(differences, currentData) {
     console.log('💾 Diferenças detectadas. Salvando relatórios...');
-
-    // Save general differences
     writeXlsxFile(CONFIG.DIFF_XLSX_PATH, differences, 'Diferenças');
     console.log(`Relatório de diferenças gerais salvo em: ${CONFIG.DIFF_XLSX_PATH}`);
-
-    // Filter and save TJMT specific differences
     const tjmtDifferences = differences.filter(d =>
         (d['Tribunal (Ant)'] === CONFIG.TJMT_IDENTIFIER && d['Tribunal (Ant)'] !== 'Não encontrado') ||
         (d['Tribunal (Atual)'] === CONFIG.TJMT_IDENTIFIER && d['Tribunal (Atual)'] !== 'Não encontrado')
     );
-
     if (tjmtDifferences.length > 0) {
         writeXlsxFile(CONFIG.DIFF_TJMT_PATH, tjmtDifferences, 'TJMT');
         console.log(`Relatório de diferenças TJMT salvo em: ${CONFIG.DIFF_TJMT_PATH}`);
     } else {
         console.log('Nenhuma diferença específica do TJMT encontrada.');
     }
-
-    // Save a copy of the current full table (dated)
     fs.copyFileSync(CONFIG.XLSX_PATH, CONFIG.GERAL_XLSX_PATH);
     console.log(`Cópia geral da tabela atual (com data) salva em: ${CONFIG.GERAL_XLSX_PATH}`);
-
-    // Filter and save TJMT specific data from the current table (dated)
     const tjmtCurrentData = currentData.filter(row => row['Tribunal'] === CONFIG.TJMT_IDENTIFIER);
     if (tjmtCurrentData.length > 0) {
         writeXlsxFile(CONFIG.TJMT_XLSX_PATH, tjmtCurrentData, 'TJMT');
@@ -337,38 +264,28 @@ function handleDetectedDifferences(differences, currentData) {
     } else {
         console.log('Nenhum dado do TJMT encontrado na tabela atual para salvar separadamente.');
     }
-
-    // Update the previous file to the current one for the next run
     fs.copyFileSync(CONFIG.XLSX_PATH, CONFIG.PREV_XLSX_PATH);
     console.log(`Arquivo base para comparação futura atualizado: ${CONFIG.PREV_XLSX_PATH}`);
-
-    // Create a flag file indicating changes
     fs.writeFileSync(CONFIG.FLAG_FILE, 'HAS_CHANGES=1');
     console.log(`🚩 Arquivo de flag criado/atualizado: ${CONFIG.FLAG_FILE}`);
     console.log('✅ Diferenças detectadas e salvas.');
 }
-
 
 // --- MAIN EXECUTION ---
 (async () => {
     let browser;
     try {
         setupDirectories();
-
         console.log('Verificando arquivo anterior para comparação...');
         console.log('Caminho do arquivo anterior:', CONFIG.PREV_XLSX_PATH);
         const hasPrevFile = fs.existsSync(CONFIG.PREV_XLSX_PATH);
         console.log('Arquivo anterior existe?', hasPrevFile ? 'Sim' : 'Não');
-
         const { browser: b, page } = await launchBrowserAndPage();
-        browser = b; // Assign to outer scope for finally block
-
+        browser = b;
         await navigateAndPreparePage(page);
-        const downloadedFilePath = await downloadTableFile(page); // This is CONFIG.XLSX_PATH
-
+        const downloadedFilePath = await downloadTableFile(page);
         console.log('Lendo dados da tabela baixada...');
         const currentData = readXlsxSheet(downloadedFilePath);
-
         if (!hasPrevFile) {
             console.log('📥 Primeira execução ou arquivo anterior não encontrado.');
             console.log('Salvando arquivo baixado como base para comparações futuras.');
@@ -376,12 +293,8 @@ function handleDetectedDifferences(differences, currentData) {
             console.log(`Arquivo base salvo em: ${CONFIG.PREV_XLSX_PATH}`);
         } else {
             console.log('Lendo dados da tabela anterior...');
-            console.log('🔍 Caminho absoluto do arquivo anterior:', path.resolve(CONFIG.PREV_XLSX_PATH));
-            console.log('📂 Conteúdo do diretório de downloads:', fs.readdirSync(CONFIG.DOWNLOAD_DIR).join(', '));
             const previousData = readXlsxSheet(CONFIG.PREV_XLSX_PATH);
-
             const differences = findDifferences(currentData, previousData);
-
             if (differences.length > 0) {
                 handleDetectedDifferences(differences, currentData);
             } else {
@@ -390,10 +303,9 @@ function handleDetectedDifferences(differences, currentData) {
         }
         console.log('🚀 Processo concluído com sucesso.');
         process.exitCode = 0;
-
     } catch (err) {
         console.error('❌ Erro fatal no script:', err.message);
-        console.error(err.stack); // Log stack for detailed debugging
+        console.error(err.stack);
         process.exitCode = 1;
     } finally {
         if (browser) {
