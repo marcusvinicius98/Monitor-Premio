@@ -161,24 +161,61 @@ async function selectRamoEstadual(page) {
         
         console.log('✅ Opção "Estadual" encontrada. Clicando...');
         
-        // Click on "Estadual" option
+        // Click on "Estadual" option - ONLY "Estadual", NOT "Militar Estadual"
         const clicked = await page.evaluate(() => {
-            const rows = Array.from(document.querySelectorAll('[role="row"]'));
-            const estadualRow = rows.find(row => {
+            // Method 1: Try aria-label with exact "Estadual" (not Militar Estadual)
+            let rows = Array.from(document.querySelectorAll('[role="row"]'));
+            let estadualRow = rows.find(row => {
                 const label = row.getAttribute('aria-label');
-                return label && label.includes('Estadual Alternativo');
+                if (!label) return false;
+                
+                // Must contain "Estadual" but NOT "Militar"
+                const hasEstadual = label.includes('Estadual');
+                const hasMilitar = label.toLowerCase().includes('militar');
+                
+                return hasEstadual && !hasMilitar;
             });
+            
+            // Method 2: If not found, try finding by text content (exact match)
+            if (!estadualRow) {
+                rows = Array.from(document.querySelectorAll('[role="row"]'));
+                estadualRow = rows.find(row => {
+                    const spans = row.querySelectorAll('span');
+                    return Array.from(spans).some(span => {
+                        const text = span.textContent.trim();
+                        return text === 'Estadual' || text === 'Justiça Estadual';
+                    });
+                });
+            }
+            
+            // Method 3: Try finding by title attribute (exact match)
+            if (!estadualRow) {
+                const cells = Array.from(document.querySelectorAll('.RowColumn-cell'));
+                const estadualCell = cells.find(cell => {
+                    const title = cell.getAttribute('title');
+                    return title === 'Estadual' || title === 'Justiça Estadual';
+                });
+                if (estadualCell) {
+                    estadualRow = estadualCell.closest('[role="row"]');
+                }
+            }
             
             if (estadualRow) {
                 estadualRow.click();
-                return true;
+                return { success: true, method: 'found' };
             }
-            return false;
+            
+            // Return debug info if not found
+            const allLabels = rows.map(r => r.getAttribute('aria-label')).filter(Boolean);
+            return { success: false, labels: allLabels };
         });
         
-        if (!clicked) {
-            throw new Error('Não foi possível clicar na opção "Estadual"');
+        if (!clicked.success) {
+            console.error('Debug - Labels encontrados:', clicked.labels);
+            throw new Error('Não foi possível clicar na opção "Estadual". Labels disponíveis: ' + JSON.stringify(clicked.labels));
         }
+        
+        console.log('✅ Clique realizado com sucesso em "Estadual" (sem Militar)!');
         
         console.log('⏳ Aguardando seleção...');
         await sleep(1500);
