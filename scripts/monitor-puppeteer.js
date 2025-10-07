@@ -159,44 +159,120 @@ async function selectRamoEstadual(page) {
             { timeout: CONFIG.PAGE_TIMEOUT }
         );
         
-        console.log('✅ Opção "Estadual" encontrada. Clicando...');
+        console.log('✅ Opção "Estadual" encontrada. Tentando clicar...');
         
-        // Click on "Estadual" option - simple and direct
-        const clicked = await page.evaluate(() => {
+        // Try multiple click methods for better reliability
+        const clickResult = await page.evaluate(() => {
             const rows = Array.from(document.querySelectorAll('[role="row"]'));
             
-            // Find row with exact text "Estadual"
+            // Find row with exact text "Estadual" (not Militar Estadual)
             const estadualRow = rows.find(row => {
                 const spans = row.querySelectorAll('span');
-                return Array.from(spans).some(span => {
-                    const text = span.textContent.trim();
-                    return text === 'Estadual';
+                const texts = Array.from(spans).map(s => s.textContent.trim());
+                // Must have "Estadual" but not "Militar"
+                return texts.some(text => text === 'Estadual') && 
+                       !texts.some(text => text.includes('Militar'));
+            });
+            
+            if (!estadualRow) {
+                const allOptions = rows.map(r => {
+                    const spans = r.querySelectorAll('span');
+                    return Array.from(spans).map(s => s.textContent.trim()).join(' ');
+                }).filter(Boolean);
+                return { success: false, error: 'not_found', options: allOptions };
+            }
+            
+            // Get current selection before clicking
+            const wasSelected = estadualRow.getAttribute('aria-selected') === 'true';
+            
+            // Try multiple click methods
+            try {
+                // Method 1: Click the row directly
+                estadualRow.click();
+                
+                // Method 2: Dispatch mouse events for better compatibility
+                const clickEvent = new MouseEvent('click', {
+                    view: window,
+                    bubbles: true,
+                    cancelable: true
                 });
+                estadualRow.dispatchEvent(clickEvent);
+                
+                // Method 3: Click on the cell inside
+                const cell = estadualRow.querySelector('.RowColumn-cell');
+                if (cell) {
+                    cell.click();
+                }
+                
+                return { 
+                    success: true, 
+                    wasSelected: wasSelected,
+                    ariaSelected: estadualRow.getAttribute('aria-selected')
+                };
+            } catch (e) {
+                return { success: false, error: e.message };
+            }
+        });
+        
+        if (!clickResult.success) {
+            console.error('❌ Erro ao clicar:', clickResult.error);
+            if (clickResult.options) {
+                console.error('Debug - Opções encontradas:', clickResult.options);
+            }
+            throw new Error('Não foi possível clicar na opção "Estadual"');
+        }
+        
+        console.log('✅ Clique executado!');
+        console.log(`   Estado anterior: ${clickResult.wasSelected ? 'Selecionado' : 'Não selecionado'}`);
+        console.log(`   Estado após clique: aria-selected="${clickResult.ariaSelected}"`);
+        
+        console.log('⏳ Aguardando seleção...');
+        await sleep(2000);
+        
+        // Verify the selection was applied
+        console.log('🔍 Verificando se "Estadual" foi realmente selecionado...');
+        const isSelected = await page.evaluate(() => {
+            const rows = Array.from(document.querySelectorAll('[role="row"]'));
+            const estadualRow = rows.find(row => {
+                const spans = row.querySelectorAll('span');
+                const texts = Array.from(spans).map(s => s.textContent.trim());
+                return texts.some(text => text === 'Estadual') && 
+                       !texts.some(text => text.includes('Militar'));
             });
             
             if (estadualRow) {
-                estadualRow.click();
-                return { success: true };
+                const selected = estadualRow.getAttribute('aria-selected') === 'true';
+                const hasCheckIcon = estadualRow.querySelector('svg') !== null;
+                return { selected, hasCheckIcon, found: true };
             }
-            
-            // Return all available options for debug
-            const allOptions = rows.map(r => {
-                const spans = r.querySelectorAll('span');
-                return Array.from(spans).map(s => s.textContent.trim()).join(' ');
-            }).filter(Boolean);
-            
-            return { success: false, options: allOptions };
+            return { selected: false, hasCheckIcon: false, found: false };
         });
         
-        if (!clicked.success) {
-            console.error('Debug - Opções encontradas:', clicked.options);
-            throw new Error('Não foi possível clicar na opção "Estadual". Opções disponíveis: ' + JSON.stringify(clicked.options));
+        console.log(`   Resultado: ${JSON.stringify(isSelected)}`);
+        
+        if (!isSelected.selected && !isSelected.hasCheckIcon) {
+            console.warn('⚠️ AVISO: "Estadual" pode não estar selecionado!');
+            // Try clicking again
+            console.log('🔄 Tentando clicar novamente...');
+            await page.evaluate(() => {
+                const rows = Array.from(document.querySelectorAll('[role="row"]'));
+                const estadualRow = rows.find(row => {
+                    const spans = row.querySelectorAll('span');
+                    const texts = Array.from(spans).map(s => s.textContent.trim());
+                    return texts.some(text => text === 'Estadual') && 
+                           !texts.some(text => text.includes('Militar'));
+                });
+                if (estadualRow) {
+                    estadualRow.click();
+                    // Force focus and click
+                    estadualRow.focus();
+                    estadualRow.click();
+                }
+            });
+            await sleep(1000);
+        } else {
+            console.log('✅ "Estadual" confirmado como selecionado!');
         }
-        
-        console.log('✅ Clicado em "Estadual"!');
-        
-        console.log('⏳ Aguardando seleção...');
-        await sleep(1500);
         
         console.log('✅ Procurando botão de confirmar...');
         
