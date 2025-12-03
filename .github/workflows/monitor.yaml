@@ -1,9 +1,10 @@
 name: Monitor CNJ VBA-Style
 
-on:
-  schedule:
-    - cron: '*/10 * * * *' 
-  workflow_dispatch:
+# on:
+#   schedule:
+#     - cron: '*/10 * * * *'
+#   workflow_dispatch:
+
 
 jobs:
   monitor:
