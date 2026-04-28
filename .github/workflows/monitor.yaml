@@ -76,6 +76,9 @@ jobs:
             scripts/downloads/Diferencas_CNJ_TJMT.xlsx
             scripts/downloads/PrêmioGeral-*.xlsx
             scripts/downloads/PrêmioTJMT-*.xlsx
+            scripts/downloads/Ranking_Tribunais_Medios-*.html
+            scripts/downloads/Ranking_Tribunais_Medios-*.pdf
+            scripts/downloads/ranking_data.json
           if-no-files-found: warn
 
       - name: Upload Artefato Screenshot
