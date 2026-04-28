@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Relatório de Diferenças CNJ — TJMT</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface2: #1c2330;
+    --border: #30363d;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --gain: #3fb950;
+    --gain-bg: #0d2c17;
+    --gain-border: #1e4620;
+    --loss: #f85149;
+    --loss-bg: #2c0d0d;
+    --loss-border: #46201e;
+    --neutral: #58a6ff;
+    --neutral-bg: #0d1f3c;
+    --neutral-border: #1c3761;
+    --new: #e3b341;
+    --new-bg: #2c1e0d;
+    --new-border: #463a1c;
+    --accent: #58a6ff;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  /* Background texture */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 80% 50% at 20% 10%, rgba(88,166,255,0.04) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 40% at 80% 90%, rgba(63,185,80,0.03) 0%, transparent 60%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 48px 24px 80px;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Header */
+  .header {
+    margin-bottom: 48px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 32px;
+  }
+
+  .header-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  .header h1 {
+    font-family: 'DM Serif Display', serif;
+    font-size: 36px;
+    font-weight: 400;
+    color: var(--text);
+    line-height: 1.2;
+    margin-bottom: 6px;
+  }
+
+  .header h1 span {
+    color: var(--accent);
+    font-style: italic;
+  }
+
+  .header-sub {
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 300;
+  }
+
+  /* Summary cards */
+  .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 40px;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .card::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+  }
+
+  .card.total::after { background: var(--accent); }
+  .card.loss::after { background: var(--loss); }
+  .card.neutral::after { background: var(--muted); }
+  .card.new-item::after { background: var(--new); }
+
+  .card-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+
+  .card-value {
+    font-family: 'DM Serif Display', serif;
+    font-size: 38px;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+
+  .card.total .card-value { color: var(--accent); }
+  .card.loss .card-value { color: var(--loss); }
+  .card.neutral .card-value { color: var(--text); }
+  .card.new-item .card-value { color: var(--new); }
+
+  .card-detail {
+    font-size: 11px;
+    color: var(--muted);
+    font-weight: 300;
+  }
+
+  /* Score bar */
+  .score-bar-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 24px;
+    margin-bottom: 40px;
+  }
+
+  .score-bar-label {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 12px;
+  }
+
+  .score-bar-title {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .score-bar-values {
+    font-family: 'DM Serif Display', serif;
+    font-size: 20px;
+  }
+
+  .score-bar-values .old { color: var(--muted); }
+  .score-bar-values .arrow { color: var(--loss); margin: 0 8px; font-size: 14px; }
+  .score-bar-values .current { color: var(--loss); }
+
+  .bar-track {
+    height: 8px;
+    background: var(--surface2);
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .bar-old {
+    position: absolute;
+    top: 0; left: 0;
+    height: 100%;
+    background: var(--border);
+    border-radius: 4px;
+    transition: width 1s ease;
+  }
+
+  .bar-new {
+    position: absolute;
+    top: 0; left: 0;
+    height: 100%;
+    background: linear-gradient(90deg, #58a6ff, #388bfd);
+    border-radius: 4px;
+    transition: width 1.2s ease;
+  }
+
+  .bar-diff-marker {
+    position: absolute;
+    top: -2px;
+    height: 12px;
+    width: 2px;
+    background: var(--loss);
+    border-radius: 1px;
+  }
+
+  /* Section headers */
+  .section {
+    margin-bottom: 32px;
+  }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .section-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-weight: 500;
+  }
+
+  .badge-loss {
+    background: var(--loss-bg);
+    border: 1px solid var(--loss-border);
+    color: var(--loss);
+  }
+
+  .badge-neutral {
+    background: var(--neutral-bg);
+    border: 1px solid var(--neutral-border);
+    color: var(--neutral);
+  }
+
+  .badge-new {
+    background: var(--new-bg);
+    border: 1px solid var(--new-border);
+    color: var(--new);
+  }
+
+  .section-count {
+    font-size: 12px;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+  }
+
+  /* Indicator rows */
+  .indicator {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin-bottom: 8px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 16px;
+    align-items: start;
+    position: relative;
+    transition: border-color 0.2s;
+  }
+
+  .indicator:hover { border-color: #484f58; }
+
+  .indicator.loss {
+    border-left: 3px solid var(--loss);
+    background: linear-gradient(90deg, var(--loss-bg), var(--surface));
+  }
+
+  .indicator.gain {
+    border-left: 3px solid var(--gain);
+    background: linear-gradient(90deg, var(--gain-bg), var(--surface));
+  }
+
+  .indicator.neutral {
+    border-left: 3px solid var(--border);
+  }
+
+  .indicator.new-ind {
+    border-left: 3px solid var(--new);
+    background: linear-gradient(90deg, var(--new-bg), var(--surface));
+  }
+
+  .ind-code {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--accent);
+    margin-bottom: 4px;
+    letter-spacing: 0.05em;
+  }
+
+  .ind-name {
+    font-size: 13px;
+    color: var(--text);
+    font-weight: 400;
+    line-height: 1.4;
+  }
+
+  .ind-right {
+    text-align: right;
+    min-width: 120px;
+  }
+
+  .delta {
+    font-family: 'DM Serif Display', serif;
+    font-size: 24px;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+
+  .delta.negative { color: var(--loss); }
+  .delta.positive { color: var(--gain); }
+  .delta.zero { color: var(--muted); }
+
+  .pts-row {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+  }
+
+  .pts-arrow {
+    color: var(--loss);
+    font-size: 10px;
+  }
+
+  .pts-old { text-decoration: line-through; opacity: 0.6; }
+
+  .result-row {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    font-size: 11px;
+    margin-top: 6px;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+  }
+
+  .result-old { opacity: 0.5; text-decoration: line-through; }
+  .result-new { color: var(--text); }
+
+  /* Footer */
+  .footer {
+    border-top: 1px solid var(--border);
+    margin-top: 48px;
+    padding-top: 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: var(--muted);
+    font-size: 11px;
+    font-family: 'DM Mono', monospace;
+    letter-spacing: 0.05em;
+  }
+
+  @media (max-width: 640px) {
+    .summary-grid { grid-template-columns: repeat(2, 1fr); }
+    .indicator { grid-template-columns: 1fr; }
+    .ind-right { text-align: left; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-label">Prêmio CNJ de Qualidade — Análise Comparativa</div>
+    <h1>Diferenças de Pontuação <span>TJMT</span></h1>
+    <div class="header-sub">Comparativo entre versão anterior e versão atual · 22 indicadores analisados</div>
+  </div>
+
+  <!-- Summary cards -->
+  <div class="summary-grid">
+    <div class="card neutral">
+      <div class="card-label">Pontuação Anterior</div>
+      <div class="card-value">340</div>
+      <div class="card-detail">pontos acumulados</div>
+    </div>
+    <div class="card neutral">
+      <div class="card-label">Pontuação Atual</div>
+      <div class="card-value">315</div>
+      <div class="card-detail">pontos acumulados</div>
+    </div>
+    <div class="card loss">
+      <div class="card-label">Variação Total</div>
+      <div class="card-value">−25</div>
+      <div class="card-detail">pontos perdidos</div>
+    </div>
+    <div class="card new-item">
+      <div class="card-label">Novos Indicadores</div>
+      <div class="card-value">1</div>
+      <div class="card-detail">ainda sem pontuação</div>
+    </div>
+  </div>
+
+  <!-- Progress bar -->
+  <div class="score-bar-wrap">
+    <div class="score-bar-label">
+      <div class="score-bar-title">Evolução da Pontuação</div>
+      <div class="score-bar-values">
+        <span class="old">340</span>
+        <span class="arrow">→</span>
+        <span class="current">315 pts</span>
+      </div>
+    </div>
+    <div class="bar-track">
+      <div class="bar-old" style="width: 92.6%"></div>
+      <div class="bar-new" style="width: 85.8%"></div>
+      <div class="bar-diff-marker" style="left: 85.8%"></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;">
+      <span>0</span>
+      <span>Máx estimado: 367 pts</span>
+    </div>
+  </div>
+
+  <!-- PERDAS -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-badge badge-loss">▼ Perdas · −25 pts</span>
+      <span class="section-count">2 indicadores</span>
+    </div>
+
+    <div class="indicator loss">
+      <div>
+        <div class="ind-code">10) XII — b)</div>
+        <div class="ind-name">Julgar, entre 1º/8/2025 e 31/7/2026, pelo menos 30,00% dos processos ambientais ingressados até 31/12/2022 e que não tinham sido julgados ou baixados até 31/7/2025</div>
+      </div>
+      <div class="ind-right">
+        <div class="delta negative">−20 pts</div>
+        <div class="pts-row">
+          <span class="pts-old">20</span>
+          <span class="pts-arrow">→</span>
+          <span>0</span>
+        </div>
+        <div class="result-row">
+          <span class="result-old">40,8%</span>
+          <span>→</span>
+          <span class="result-new">19,7%</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="indicator loss">
+      <div>
+        <div class="ind-code">10) XI — a)</div>
+        <div class="ind-name">Percentual de unidades judiciárias de primeiro grau com IAD igual ou maior que 100%</div>
+      </div>
+      <div class="ind-right">
+        <div class="delta negative">−5 pts</div>
+        <div class="pts-row">
+          <span class="pts-old">25</span>
+          <span class="pts-arrow">→</span>
+          <span>20</span>
+        </div>
+        <div class="result-row">
+          <span class="result-old">73,6%</span>
+          <span>→</span>
+          <span class="result-new">58,3%</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- NOVO INDICADOR -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-badge badge-new">★ Novo Indicador</span>
+      <span class="section-count">1 indicador · sem pontuação anterior</span>
+    </div>
+
+    <div class="indicator new-ind">
+      <div>
+        <div class="ind-code">12) I — c.7)</div>
+        <div class="ind-name">KML válido</div>
+      </div>
+      <div class="ind-right">
+        <div class="delta zero" style="font-size:18px;color:var(--new);">Novo</div>
+        <div class="pts-row" style="color:var(--new);">0 pts · 25,0%</div>
+        <div class="result-row" style="font-size:10px;">indicador incluído recentemente</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ESTÁVEIS -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-badge badge-neutral">= Estáveis · sem variação</span>
+      <span class="section-count">19 indicadores</span>
+    </div>
+
+    <div class="indicator neutral">
+      <div>
+        <div class="ind-code">10) IX — a)</div>
+        <div class="ind-name">Tempo médio dos processos pendentes líquidos (dias entre início da ação penal e data-base)</div>
+      </div>
+      <div class="ind-right">
+        <div class="delta zero">= 20 pts</div>
+        <div class="result-row"><span class="result-old">586</span><span>→</span><span class="result-new">560 dias</span></div>
+      </div>
+    </div>
+
+    <div class="indicator neutral">
+      <div>
+        <div class="ind-code">10) XII — a)</div>
+        <div class="ind-name">IAD nas ações ambientais igual ou maior que 100%</div>
+      </div>
+      <div class="ind-right">
+        <div class="delta zero">= 20 pts</div>
+        <div class="result-row"><span class="result-old">—</span><span>→</span><span class="result-new">—</span></div>
+      </div>
+    </div>
+
+    <div class="indicator neutral">
+      <div>
+        <div class="ind-code">10) IX — b)</div>
+        <div class="ind-name">Tempo médio entre início da ação penal e julgamento com resolução de mérito (Júri)</div>
+      </div>
+      <div class="ind-right">
+        <div class="delta zero">= 20 pts</div>
+        <div class="result-row"><span class="result-old">888</span><span>→</span><span class="result-new">863 dias</span></div>
+      </div>
+    </div>
+
+    <div class="indicator neutral">
+      <div>
+        <div class="ind-code">10) VII — a)</div>
+        <div class="ind-name">Celeridade processual no julgamento das Ações de Judicialização da Saúde</div>
+      </div>
+      <div class="ind-right">
+        <div class="delta zero">= 20 pts</div>
+        <div class="result-row"><span class="result-old">205</span><span>→</span><span class="result-new">197 dias</span></div>
+      </div>
+    </div>
+
+    <div class="indicator neutral">
+      <div>
+        <div class="ind-code">10) VI — a)</div>
+        <div class="ind-name">Tempo médio nos processos de violência doméstica e familiar contra a mulher pendentes líquidos</div>
+      </div>
+      <div class="ind-right">
+        <div class="delta zero">= 20 pts</div>
+        <div class="result-row"><span class="result-old">270</span><span>→</span><span class="result-new">266 dias</span></div>
+      </div>
+    </div>
+
+    <div class="indicator neutral">
+      <div>
+        <div class="ind-code">10) V</div>
+        <div class="ind-name">Julgar ou baixar os processos mais antigos</div>
+      </div>
+      <div class="ind-right">
+        <div class="delta zero">= 70 pts</div>
+        <div class="result-row"><span class="result-old">15,7%</span><span>→</span><span class="result-new">14,6%</span></div>
+      </div>
+    </div>
+
+    <div class="indicator neutral">
+      <div>
+        <div class="ind-code">10) II</div>
+        <div class="ind-name">Tempo médio de duração dos processos pendentes líquidos</div>
+      </div>
+      <div class="ind-right">
+        <div class="delta zero">= 70 pts</div>
+        <div class="result-row"><span class="result-old">435</span><span>→</span><span class="result-new">417 dias</span></div>
+      </div>
+    </div>
+
+    <div class="indicator neutral">
+      <div>
+        <div class="ind-code">10) XI — b)</div>
+        <div class="ind-name">Percentual de unidades judiciárias de segundo grau com IAD igual ou maior que 100%</div>
+      </div>
+      <div class="ind-right">
+        <div class="delta zero">= 15 pts</div>
+        <div class="result-row"><span class="result-old">76,5%</span><span>→</span><span class="result-new">76,0%</span></div>
+      </div>
+    </div>
+
+    <div class="indicator neutral">
+      <div>
+        <div class="ind-code">10) III — a)</div>
+        <div class="ind-name">Indicador I (Meta 3)</div>
+      </div>
+      <div class="ind-right">
+        <div class="delta zero">= 10 pts</div>
+        <div class="result-row"><span class="result-old">34,5%</span><span>→</span><span class="result-new">31,8%</span></div>
+      </div>
+    </div>
+
+    <div class="indicator neutral">
+      <div>
+        <div class="ind-code">10) III — e) VI</div>
+        <div class="ind-name">Indicador VI (Meta 3)</div>
+      </div>
+      <div class="ind-right">
+        <div class="delta zero">= 10 pts</div>
+        <div class="result-row"><span class="result-old">4,0%</span><span>→</span><span class="result-new">3,6%</span></div>
+      </div>
+    </div>
+
+    <div class="indicator neutral">
+      <div>
+        <div class="ind-code">10) III — e) VII</div>
+        <div class="ind-name">Indicador VII (Meta 3)</div>
+      </div>
+      <div class="ind-right">
+        <div class="delta zero">= 10 pts</div>
+        <div class="result-row"><span class="result-old">18,4%</span><span>→</span><span class="result-new">18,2%</span></div>
+      </div>
+    </div>
+
+    <div class="indicator neutral">
+      <div>
+        <div class="ind-code">12) I — b.1)</div>
+        <div class="ind-name">Polo ativo preenchido e documento preenchido e em formato válido</div>
+      </div>
+      <div class="ind-right">
+        <div class="delta zero">= 10 pts</div>
+        <div class="result-row"><span class="result-old">100,0%</span><span>→</span><span class="result-new">99,0%</span></div>
+      </div>
+    </div>
+
+    <div class="indicator neutral">
+      <div>
+        <div class="ind-code">10) XV</div>
+        <div class="ind-name">Celeridade processual na tramitação dos processos de apuração de atos infracionais</div>
+      </div>
+      <div class="ind-right">
+        <div class="delta zero">= 0 pts</div>
+        <div class="result-row"><span class="result-old">59,3%</span><span>→</span><span class="result-new">59,4%</span></div>
+      </div>
+    </div>
+
+    <div class="indicator neutral">
+      <div>
+        <div class="ind-code">10) VII — b.1)</div>
+        <div class="ind-name">Índice de conciliação na saúde pública</div>
+      </div>
+      <div class="ind-right">
+        <div class="delta zero">= 0 pts</div>
+        <div class="result-row"><span class="result-old">3,0%</span><span>→</span><span class="result-new">3,8%</span></div>
+      </div>
+    </div>
+
+    <div class="indicator neutral">
+      <div>
+        <div class="ind-code">10) VII — b.2)</div>
+        <div class="ind-name">Índice de conciliação na saúde suplementar</div>
+      </div>
+      <div class="ind-right">
+        <div class="delta zero">= 0 pts</div>
+        <div class="result-row"><span class="result-old">2,6%</span><span>→</span><span class="result-new">3,0%</span></div>
+      </div>
+    </div>
+
+    <div class="indicator neutral">
+      <div>
+        <div class="ind-code">10) III — b)</div>
+        <div class="ind-name">Indicador II (Meta 3)</div>
+      </div>
+      <div class="ind-right">
+        <div class="delta zero">= 0 pts</div>
+        <div class="result-row"><span class="result-old">12,4%</span><span>→</span><span class="result-new">12,2%</span></div>
+      </div>
+    </div>
+
+    <div class="indicator neutral">
+      <div>
+        <div class="ind-code">12) I — c.3)</div>
+        <div class="ind-name">Repetitivos e Repercussão Geral</div>
+      </div>
+      <div class="ind-right">
+        <div class="delta zero">= 0 pts</div>
+        <div class="result-row"><span class="result-old">96,0%</span><span>→</span><span class="result-new">95,0%</span></div>
+      </div>
+    </div>
+
+    <div class="indicator neutral">
+      <div>
+        <div class="ind-code">12) III — c1)</div>
+        <div class="ind-name">Saneamento por Unidade Judiciária — Documento Polo Ativo</div>
+      </div>
+      <div class="ind-right">
+        <div class="delta zero">= 0 pts</div>
+        <div class="result-row"><span class="result-old">91,0%</span><span>→</span><span class="result-new">94,0%</span></div>
+      </div>
+    </div>
+
+    <div class="indicator neutral">
+      <div>
+        <div class="ind-code">12) III — c2)</div>
+        <div class="ind-name">Saneamento por Unidade Judiciária — Documento Polo Passivo</div>
+      </div>
+      <div class="ind-right">
+        <div class="delta zero">= 0 pts</div>
+        <div class="result-row"><span class="result-old">88,0%</span><span>→</span><span class="result-new">82,0%</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <span>TJMT · Prêmio CNJ de Qualidade</span>
+    <span>Gerado em abril/2026</span>
+  </div>
+
+</div>
+</body>
+</html>
