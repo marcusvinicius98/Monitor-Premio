@@ -1,4 +1,4 @@
-name: Consolidar histórico prev_tabela
+name: Consolidar histórico PrêmioGeral
 
 permissions:
   contents: write
@@ -22,7 +22,7 @@ jobs:
       - name: Instalar dependências
         run: pip install pandas openpyxl pyarrow
 
-      - name: Consolidar snapshots
+      - name: Consolidar tabelas PrêmioGeral
         run: python scripts/consolidar_historico.py
         env:
           GH_TOKEN: ${{ github.token }}
@@ -30,19 +30,19 @@ jobs:
       - name: Gravar histórico no repositório (pasta data/)
         run: |
           mkdir -p data
-          cp historico_prev_tabela.csv data/
-          cp historico_prev_tabela.parquet data/ 2>/dev/null || true
+          cp historico_premio_geral.csv data/
+          cp historico_premio_geral.parquet data/ 2>/dev/null || true
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add data/
-          git commit -m "chore: histórico consolidado de prev_tabela" || echo "Sem mudanças para commitar"
+          git commit -m "chore: histórico consolidado do PrêmioGeral" || echo "Sem mudanças para commitar"
           git push
 
       - name: Upload do histórico consolidado
         uses: actions/upload-artifact@v4
         with:
-          name: historico_prev_tabela
+          name: historico_premio_geral
           path: |
-            historico_prev_tabela.csv
-            historico_prev_tabela.parquet
+            historico_premio_geral.csv
+            historico_premio_geral.parquet
           if-no-files-found: error

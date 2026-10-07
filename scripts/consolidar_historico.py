@@ -1,12 +1,14 @@
 """
-Consolida o histórico de snapshots da tabela do CNJ (artefatos "prev_tabela" do Actions)
-em um único arquivo, para alimentar o dashboard de evolução dos tribunais.
+Consolida o histórico da tabela geral do Prêmio CNJ (arquivos PrêmioGeral-DD-MM-AAAA.xlsx,
+os mesmos que o Telegram envia) a partir dos artefatos "Diferencas_CNJ" do Actions,
+em um único arquivo para alimentar o dashboard de evolução dos tribunais.
 
 Roda dentro do GitHub Actions (usa a CLI `gh` já autenticada via GH_TOKEN).
-Saídas: historico_prev_tabela.csv e historico_prev_tabela.parquet (se possível)
+Saídas: historico_premio_geral.csv e historico_premio_geral.parquet (se possível)
 """
 import io
 import os
+import re
 import hashlib
 import subprocess
 import zipfile
@@ -14,14 +16,17 @@ import zipfile
 import pandas as pd
 
 REPO = os.environ.get("GITHUB_REPOSITORY", "marcusvinicius98/Monitor-Premio")
-SAIDA_CSV = "historico_prev_tabela.csv"
-SAIDA_PARQUET = "historico_prev_tabela.parquet"
+SAIDA_CSV = "historico_premio_geral.csv"
+SAIDA_PARQUET = "historico_premio_geral.parquet"
 
-# 1) Lista todos os artefatos prev_tabela ainda não expirados
+# Nome do arquivo: PrêmioGeral-07-10-2026.xlsx (aceita variações de acento/codificação)
+PADRAO_ARQUIVO = re.compile(r"Pr.mioGeral-(\d{2})-(\d{2})-(\d{4})\.xlsx$", re.IGNORECASE)
+
+# 1) Lista todos os artefatos Diferencas_CNJ ainda não expirados
 saida = subprocess.run(
     [
         "gh", "api", "--paginate",
-        f"repos/{REPO}/actions/artifacts?per_page=100&name=prev_tabela",
+        f"repos/{REPO}/actions/artifacts?per_page=100&name=Diferencas_CNJ",
         "--jq",
         '.artifacts[] | select(.expired==false) | [.id, .created_at, (.workflow_run.id // "")] | @tsv',
     ],
@@ -35,11 +40,12 @@ for linha in saida.strip().splitlines():
 
 # Ordem cronológica (do mais antigo para o mais novo)
 artefatos.sort(key=lambda x: x[1])
-print(f"{len(artefatos)} artefatos prev_tabela encontrados")
+print(f"{len(artefatos)} artefatos Diferencas_CNJ encontrados")
 
-# 2) Baixa cada um, lê a planilha e descarta snapshots idênticos ao anterior
+# 2) Baixa cada um, pega o PrêmioGeral-*.xlsx e descarta versões idênticas à anterior
 partes = []
 hash_anterior = None
+sem_premio_geral = 0
 falhas = 0
 
 for art_id, criado_em, run_id in artefatos:
@@ -50,11 +56,12 @@ for art_id, criado_em, run_id in artefatos:
         ).stdout
 
         with zipfile.ZipFile(io.BytesIO(bruto)) as z:
-            nomes = [n for n in z.namelist() if n.lower().endswith(".xlsx")]
-            if not nomes:
-                print(f"  {art_id}: sem xlsx, ignorado")
+            achados = [n for n in z.namelist() if PADRAO_ARQUIVO.search(os.path.basename(n))]
+            if not achados:
+                sem_premio_geral += 1
                 continue
-            with z.open(nomes[0]) as f:
+            nome = achados[0]
+            with z.open(nome) as f:
                 df = pd.read_excel(f)
 
     except Exception as e:
@@ -62,24 +69,32 @@ for art_id, criado_em, run_id in artefatos:
         print(f"  {art_id}: falhou ({e})")
         continue
 
-    # Hash do conteúdo para pular snapshots sem mudança
+    # Data do arquivo (a que aparece no nome enviado ao Telegram)
+    m = PADRAO_ARQUIVO.search(os.path.basename(nome))
+    data_arquivo = f"{m.group(3)}-{m.group(2)}-{m.group(1)}"
+
+    # Hash do conteúdo para pular tabelas sem mudança
     hash_atual = hashlib.sha256(df.to_csv(index=False).encode("utf-8")).hexdigest()
     if hash_atual == hash_anterior:
         continue
     hash_anterior = hash_atual
 
-    df.insert(0, "snapshot_utc", criado_em)
-    df.insert(1, "run_id", run_id)
+    df.insert(0, "data_arquivo", data_arquivo)
+    df.insert(1, "snapshot_utc", criado_em)
+    df.insert(2, "run_id", run_id)
     partes.append(df)
-    print(f"  {criado_em}: {len(df)} linhas")
+    print(f"  {data_arquivo} ({criado_em}): {len(df)} linhas")
 
 # 3) Junta tudo e grava
 if not partes:
-    raise SystemExit("Nenhum snapshot válido encontrado")
+    raise SystemExit("Nenhuma tabela PrêmioGeral encontrada nos artefatos")
 
 historico = pd.concat(partes, ignore_index=True)
 historico.to_csv(SAIDA_CSV, index=False, encoding="utf-8-sig")
-print(f"{len(partes)} snapshots distintos, {len(historico)} linhas, {falhas} falhas -> {SAIDA_CSV}")
+print(
+    f"{len(partes)} versões distintas, {len(historico)} linhas, "
+    f"{sem_premio_geral} artefatos sem PrêmioGeral, {falhas} falhas -> {SAIDA_CSV}"
+)
 
 try:
     historico.to_parquet(SAIDA_PARQUET, index=False)
