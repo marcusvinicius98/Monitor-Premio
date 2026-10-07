@@ -207,6 +207,10 @@ footer { color: var(--ink-3); font-size: .78rem; max-width: 90ch; }
   <div class="stack" id="v-pan" role="tabpanel" aria-labelledby="tab-pan">
     <div class="selo-kpis" id="p-kpis"></div>
     <div class="panel">
+      <div class="panel-head"><div><h2>Selos por porte</h2><p>Na versão mais recente. Cada porte compete só entre si, como no regulamento.</p></div></div>
+      <div class="scroll"><table id="p-porte"></table></div>
+    </div>
+    <div class="panel">
       <div class="panel-head"><div><h2>Selos projetados ao longo das versões</h2><p>Quantos tribunais estaduais ficariam em cada faixa, a cada versão da tabela do CNJ.</p></div></div>
       <div class="chart" id="p-bars"></div>
       <div class="leg" id="p-leg"></div>
@@ -214,7 +218,8 @@ footer { color: var(--ink-3); font-size: .78rem; max-width: 90ch; }
     <div class="panel">
       <div class="panel-head">
         <div><h2>Ranking e faixa de selo</h2><p>Clique em um tribunal para abrir a visão detalhada.</p></div>
-        <div class="field row"><label for="sel-versao">Versão da tabela</label><select id="sel-versao"></select></div>
+        <div class="chips"><div class="field row"><label for="sel-porte">Porte</label><select id="sel-porte"><option value="todos">Todos os portes</option><option value="grande">Grande porte</option><option value="medio">Médio porte</option><option value="pequeno">Pequeno porte</option></select></div>
+        <div class="field row"><label for="sel-versao">Versão da tabela</label><select id="sel-versao"></select></div></div>
       </div>
       <div class="scroll"><table id="p-rank"></table></div>
       <div class="legend-line"><span>Traços na barra: limites de 75 %, 80 % e 85 % do máximo da tabela.</span></div>
@@ -331,9 +336,29 @@ const SELOS = [
   { k: 2, nome: "Ouro", cor: "--selo-o", min: 80 },
   { k: 3, nome: "Diamante", cor: "--selo-d", min: 85 },
 ];
-const seloDe = (p, mx) => (p * 100 > 85 * mx ? 3 : p * 100 > 80 * mx ? 2 : p * 100 > 75 * mx ? 1 : 0);
+/* Porte dos TJs (Justiça em Números; TJMT = médio). Ajuste aqui se o CNJ divulgar outra classificação para 2026. */
+const PORTES = {
+  grande: ["TJSP", "TJRJ", "TJBA", "TJPR", "TJRS", "TJMG"],
+  medio: ["TJGO", "TJMT", "TJMA", "TJDFT", "TJPE", "TJCE", "TJES", "TJSC", "TJPA"],
+  pequeno: ["TJAL", "TJAP", "TJRR", "TJRO", "TJTO", "TJRN", "TJAC", "TJSE", "TJPB", "TJPI", "TJMS", "TJAM"],
+};
+const NOME_PORTE = { grande: "Grande porte", medio: "Médio porte", pequeno: "Pequeno porte" };
+/* Regras do art. 14 da Portaria 471/2025 (Estadual): [limite %, colocação até, pontuação mínima %] por porte */
+const REGRAS = {
+  3: { grande: [85, 1, 65], medio: [85, 2, 70], pequeno: [85, 2, 70] },
+  2: { grande: [80, 2, 60], medio: [80, 5, 65], pequeno: [80, 5, 65] },
+  1: { grande: [75, 4, 55], medio: [75, 7, 60], pequeno: [75, 9, 60] },
+};
+const porteDe = D.trib.map((n) => Object.keys(PORTES).find((k) => PORTES[k].includes(n)) || "medio");
+/* posição dentro do porte em cada versão (empates dividem a posição) */
+const posPorte = tot.map((linha) => linha.map((p, t) => 1 + linha.filter((q, u) => porteDe[u] === porteDe[t] && q > p).length));
+function seloTrib(s, t) {
+  const pc = pct[s][t], pr = porteDe[t], rk = posPorte[s][t];
+  for (const k of [3, 2, 1]) { const [lim, ate, minimo] = REGRAS[k][pr]; if (pc >= minimo && (pc > lim || rk <= ate)) return k; }
+  return 0;
+}
+const selo = tot.map((linha, s) => linha.map((_, t) => seloTrib(s, t)));
 const ptsParaSelo = (k, mx) => Math.floor((SELOS[k].min * mx) / 100) + 1; // menor pontuação inteira "acima de" X %
-const selo = tot.map((linha, s) => linha.map((p) => seloDe(p, maxPts[s])));
 
 function seloSvg(k, tam = 28) {
   const c = `var(${SELOS[k].cor})`;
@@ -363,7 +388,7 @@ const primeiraVersao = (r) => { for (let s = 0; s < S; s++) if (D.val[s][r] != n
 
 /* ---------- estado e cores ---------- */
 const estado = {
-  aba: "pan", versao: ult,
+  aba: "pan", versao: ult, porte: "todos",
   trib: iTJMT >= 0 ? iTJMT : 0, comp: [], filtroReq: "todos", ordemReq: "premio",
   r: mudancas.indexOf(Math.max(...mudancas)), selObj: [], metrica: "res", ordemMat: "pts", busca: "", soMudou: false,
 };
@@ -475,6 +500,15 @@ function renderPanKpis() {
   $("p-kpis").innerHTML = h;
 }
 
+function renderPanPorte() {
+  let h = `<thead><tr><th>Porte</th><th class="num">Tribunais</th>${[3, 2, 1, 0].map((k) => `<th class="c">${SELOS[k].nome}</th>`).join("")}<th>Quem está em Diamante</th></tr></thead><tbody>`;
+  ["grande", "medio", "pequeno"].forEach((pr) => {
+    const ids = D.trib.map((_, t) => t).filter((t) => porteDe[t] === pr);
+    const por = (k) => ids.filter((t) => selo[ult][t] === k);
+    h += `<tr><td><strong>${NOME_PORTE[pr]}</strong></td><td class="num">${ids.length}</td>${[3, 2, 1, 0].map((k) => `<td class="c">${por(k).length}</td>`).join("")}<td>${por(3).sort((a, b) => tot[ult][b] - tot[ult][a]).map((t) => D.trib[t]).join(", ") || "—"}</td></tr>`;
+  });
+  $("p-porte").innerHTML = h + "</tbody>";
+}
 function renderPanBars() {
   const box = $("p-bars");
   const W = Math.max(box.clientWidth, 280), estreito = W < 520, H = estreito ? 280 : 320;
@@ -524,10 +558,11 @@ function sparkPct(t) {
 }
 function renderPanRank() {
   const v = estado.versao;
-  let h = `<thead><tr><th>Pos.</th><th>Tribunal</th><th>Selo projetado</th><th class="num">Pontos</th><th class="num">% do máx.</th><th style="min-width:120px"></th><th class="num">vs. anterior</th><th class="num">desde ${fmtData(D.datas[0])}</th><th>Trajetória</th></tr></thead><tbody>`;
-  ordemRank(v).forEach((t) => {
+  let h = `<thead><tr><th>Pos.</th><th>No porte</th><th>Tribunal</th><th>Selo projetado</th><th class="num">Pontos</th><th class="num">% do máx.</th><th style="min-width:120px"></th><th class="num">vs. anterior</th><th class="num">desde ${fmtData(D.datas[0])}</th><th>Trajetória</th></tr></thead><tbody>`;
+  ordemRank(v).filter((t) => estado.porte === "todos" || porteDe[t] === estado.porte).forEach((t) => {
     const dAnt = v > 0 ? tot[v][t] - tot[v - 1][t] : null, dIni = tot[v][t] - tot[0][t];
     h += `<tr><td class="rk">${pos[v][t]}º${nEmpate[v][t] > 1 ? ' <span class="tie">=</span>' : ""}</td>
+      <td>${posPorte[v][t]}º <span class="tie">${NOME_PORTE[porteDe[t]].split(" ")[0]}</span></td>
       <td><button type="button" class="row-btn" data-t="${t}">${D.trib[t]}</button></td>
       <td>${badgeSelo(selo[v][t], 20)}</td>
       <td class="num"><strong>${tot[v][t]}</strong> <span class="missing">/ ${maxPts[v]}</span></td>
@@ -541,11 +576,11 @@ function renderPanRank() {
   $("p-rank").querySelectorAll("[data-t]").forEach((b) => b.addEventListener("click", () => irParaTribunal(+b.dataset.t)));
 }
 function renderPanNota() {
-  $("p-nota").innerHTML = `<strong>Como ler os selos.</strong> Esta é uma <strong>projeção parcial</strong>. A tabela monitorada traz só os requisitos de <strong>Produtividade (art. 10)</strong> e de <strong>Dados e Tecnologia (art. 12)</strong>, que somam ${maxPts[ult]} pontos na versão mais recente. Governança (art. 9º), Transparência (art. 11) e as penalidades (art. 13) não estão na tabela, então o resultado oficial pode ser diferente. Aqui o selo sai do percentual do máximo da própria tabela, com os limites do art. 14 da Portaria CNJ nº 471/2025 para a Justiça Estadual:
-    <div class="lim"><span>${seloSvg(3, 18)} Diamante: acima de 85 %</span><span>${seloSvg(2, 18)} Ouro: acima de 80 %</span><span>${seloSvg(1, 18)} Prata: acima de 75 %</span></div>
-    O regulamento também admite o selo por colocação dentro do porte do tribunal e exige uma pontuação mínima. Isso depende do porte (definido pelo Justiça em Números) e não foi aplicado. A edição 2026-2027 tem apenas os selos Diamante, Ouro e Prata. As medalhas aqui são ilustrativas, não a marca oficial. Detalhes em <a href="https://www.cnj.jus.br/pesquisas-judiciarias/premio-cnj-de-qualidade/" target="_blank" rel="noopener">cnj.jus.br/premio-cnj-de-qualidade</a>.`;
+  $("p-nota").innerHTML = `<strong>Como ler os selos.</strong> Esta é uma <strong>projeção parcial</strong>. A tabela monitorada traz só os requisitos de <strong>Produtividade (art. 10)</strong> e de <strong>Dados e Tecnologia (art. 12)</strong>, que somam ${maxPts[ult]} pontos na versão mais recente. Governança (art. 9º), Transparência (art. 11) e as penalidades (art. 13) não estão na tabela, então o resultado oficial pode ser diferente. Aqui o selo sai do percentual do máximo da própria tabela e da colocação dentro do porte, como no art. 14 da Portaria CNJ nº 471/2025 (Justiça Estadual). Vale o limite percentual <em>ou</em> a colocação, sempre com a pontuação mínima:
+    <div class="lim"><span>${seloSvg(3, 18)} Diamante: acima de 85 % ou 1º (grande) / até 2º (médio e pequeno); mínimo 65 % / 70 %</span><span>${seloSvg(2, 18)} Ouro: acima de 80 % ou até 2º (grande) / 5º; mínimo 60 % / 65 %</span><span>${seloSvg(1, 18)} Prata: acima de 75 % ou até 4º (grande) / 7º (médio) / 9º (pequeno); mínimo 55 % / 60 %</span></div>
+    O porte vem do Justiça em Números (grande: ${PORTES.grande.join(", ")}) e está no código para ajuste. Empates na colocação não foram desempatados pelos eixos temáticos, e eu li a regra de colocação como alternativa ao limite percentual; confirme na Portaria antes de usar como resultado oficial. A edição 2026-2027 tem apenas os selos Diamante, Ouro e Prata. As medalhas aqui são ilustrativas, não a marca oficial. Detalhes em <a href="https://www.cnj.jus.br/pesquisas-judiciarias/premio-cnj-de-qualidade/" target="_blank" rel="noopener">cnj.jus.br/premio-cnj-de-qualidade</a>.`;
 }
-function renderPan() { renderPanKpis(); renderPanBars(); renderPanRank(); renderPanNota(); }
+function renderPan() { renderPanKpis(); renderPanPorte(); renderPanBars(); renderPanRank(); renderPanNota(); }
 
 /* ================= POR TRIBUNAL ================= */
 function irParaTribunal(t) {
@@ -559,15 +594,15 @@ function renderTribHero() {
   const presentes = D.val[ult].filter((v) => v != null).length;
   const prox = k < 3 ? k + 1 : null;
   const faltam = prox ? ptsParaSelo(prox, mx) - p1 : 0;
-  const msg = prox ? `Faltam <strong>${faltam} pts</strong> para o selo <strong>${SELOS[prox].nome}</strong> (acima de ${SELOS[prox].min} %, ou seja, ${ptsParaSelo(prox, mx)} pts).` : `Já está na faixa mais alta da projeção. A margem sobre o limite do Diamante (${ptsParaSelo(3, mx)} pts) é de <strong>${p1 - ptsParaSelo(3, mx)} pts</strong>.`;
+  const msg = prox ? `Pelo critério percentual, faltam <strong>${Math.max(faltam, 0)} pts</strong> para o selo <strong>${SELOS[prox].nome}</strong> (acima de ${SELOS[prox].min} %, ou seja, ${ptsParaSelo(prox, mx)} pts). Pela colocação no porte, ele precisaria estar até ${REGRAS[prox][porteDe[t]][1]}º entre os de ${NOME_PORTE[porteDe[t]].toLowerCase()} e ter ao menos ${REGRAS[prox][porteDe[t]][2]} %.` : `Já está na faixa mais alta da projeção. Em relação ao limite percentual do Diamante (${ptsParaSelo(3, mx)} pts), a diferença é de <strong>${p1 - ptsParaSelo(3, mx)} pts</strong>.`;
   const marcas = [[75, "Prata"], [80, "Ouro"], [85, "Diamante"]].map(([v, n]) => `<span class="tick" style="left:${v}%"></span><span class="tl" style="left:${v}%">${n} ${v} %</span>`).join("");
   $("t-hero").innerHTML = `<div class="hero">
-    <div class="big-selo">${seloSvg(k, 104)}<div class="nm">${SELOS[k].nome}</div><div class="pj">selo projetado</div></div>
+    <div class="big-selo">${seloSvg(k, 104)}<div class="nm">${SELOS[k].nome}</div><div class="pj">selo projetado · ${NOME_PORTE[porteDe[t]].toLowerCase()}</div></div>
     <div>
       <div class="mets">
         <div class="met"><div class="lab">Pontuação</div><div class="big">${p1} <small>de ${mx}</small></div><div class="note"><span class="${cls(dPts)}">${sinal(dPts)} pts</span> desde ${fmtData(D.datas[0])}</div></div>
         <div class="met"><div class="lab">Percentual do máximo</div><div class="big">${fmtPct(pc)}</div><div class="note">${fmtPct(pct[0][t])} em ${fmtData(D.datas[0])}</div></div>
-        <div class="met"><div class="lab">Posição</div><div class="big">${ordinal(pos[ult][t])} <small>de ${T}</small></div><div class="note"><span class="${cls(dPos)}">${dPos > 0 ? "▲ subiu " + dPos : dPos < 0 ? "▼ caiu " + Math.abs(dPos) : "sem mudança"}</span>${emp}</div></div>
+        <div class="met"><div class="lab">Posição</div><div class="big">${ordinal(pos[ult][t])} <small>de ${T}</small></div><div class="note"><strong>${ordinal(posPorte[ult][t])}</strong> entre ${PORTES[porteDe[t]].length} de ${NOME_PORTE[porteDe[t]].toLowerCase()} · <span class="${cls(dPos)}">${dPos > 0 ? "▲ subiu " + dPos : dPos < 0 ? "▼ caiu " + Math.abs(dPos) : "sem mudança"}</span>${emp}</div></div>
         <div class="met"><div class="lab">Nota cheia</div><div class="big">${cheiosN} <small>de ${presentes}</small></div><div class="note">objetivos na versão mais recente</div></div>
       </div>
       <div class="prog" role="img" aria-label="Percentual do máximo: ${fmtPct(pc)}"><div class="fill" style="width:${Math.min(pc, 100)}%"></div>${marcas}<span class="cur" style="left:${Math.min(Math.max(pc, 4), 96)}%">${fmtPct(pc)}</span></div>
@@ -725,6 +760,7 @@ document.querySelectorAll("[data-aba]").forEach((b) => b.addEventListener("click
 $("sel-versao").innerHTML = D.datas.map((d, i) => `<option value="${i}">${fmtData(d, true)}</option>`).reverse().join("");
 $("sel-versao").value = estado.versao;
 $("sel-versao").addEventListener("change", (e) => { estado.versao = +e.target.value; renderPanRank(); });
+$("sel-porte").addEventListener("change", (e) => { estado.porte = e.target.value; renderPanRank(); });
 $("sel-trib").innerHTML = D.trib.map((t, i) => `<option value="${i}">${t}</option>`).join("");
 $("sel-trib").value = estado.trib;
 $("sel-trib").addEventListener("change", (e) => { const t = +e.target.value; estado.comp = estado.comp.filter((x) => x !== t); estado.trib = t; corDe(t); renderTrib(); });
