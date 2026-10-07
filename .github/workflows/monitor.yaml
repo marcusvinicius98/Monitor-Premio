@@ -127,6 +127,26 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
 
+      - name: Instalar Python (histórico)
+        if: steps.monitor.outputs.has_changes == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Registrar versão no histórico (data/)
+        if: steps.monitor.outputs.has_changes == 'true'
+        continue-on-error: true
+        run: |
+          pip install --quiet pandas openpyxl pyarrow
+          python scripts/anexar_historico.py
+          if [ -n "$(git status --porcelain data/)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add data/
+            git commit -m "chore: nova versão da tabela PrêmioGeral"
+            git push || (git pull --rebase --autostash origin main && git push)
+          fi
+
       - name: Notificar falha via Telegram
         if: failure()
         run: |

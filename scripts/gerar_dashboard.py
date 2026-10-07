@@ -21,6 +21,14 @@ saida_path = sys.argv[3] if len(sys.argv) > 3 else "dashboard.html"
 
 df = pd.read_csv(csv_path)
 
+# Se houve mais de uma versão no mesmo dia, o dashboard usa a última (o CSV mantém todas)
+df["snapshot_utc"] = df["snapshot_utc"].fillna("")
+ultima_do_dia = df.groupby("data_arquivo")["snapshot_utc"].transform("max")
+if (df["snapshot_utc"] != ultima_do_dia).any():
+    dias = sorted(df.loc[df["snapshot_utc"] != ultima_do_dia, "data_arquivo"].unique())
+    print(f"Aviso: mais de uma versão nos dias {', '.join(dias)}; usando a última de cada dia.")
+    df = df[df["snapshot_utc"] == ultima_do_dia]
+
 # Normaliza o texto do requisito (espaços) e unifica renomeações entre versões da tabela
 df["Requisito"] = df["Requisito"].str.replace(r"\s+", " ", regex=True).str.strip()
 df["Requisito"] = df["Requisito"].str.replace(r"VII -a\)", "VII - a)", regex=True)
