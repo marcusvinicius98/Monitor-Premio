@@ -211,7 +211,8 @@ footer { color: var(--ink-3); font-size: .78rem; max-width: 90ch; }
       <div class="scroll"><table id="p-porte"></table></div>
     </div>
     <div class="panel">
-      <div class="panel-head"><div><h2>Selos projetados ao longo das versões</h2><p>Quantos tribunais estaduais ficariam em cada faixa, a cada versão da tabela do CNJ.</p></div></div>
+      <div class="panel-head"><div><h2>Selos projetados ao longo das versões</h2><p>Quantos tribunais estaduais ficariam em cada faixa, a cada versão da tabela do CNJ.</p></div>
+        <div class="field row"><label for="sel-porte-bars">Porte</label><select id="sel-porte-bars"><option value="todos">Todos os portes</option><option value="grande">Grande porte</option><option value="medio">Médio porte</option><option value="pequeno">Pequeno porte</option></select></div></div>
       <div class="chart" id="p-bars"></div>
       <div class="leg" id="p-leg"></div>
     </div>
@@ -388,7 +389,7 @@ const primeiraVersao = (r) => { for (let s = 0; s < S; s++) if (D.val[s][r] != n
 
 /* ---------- estado e cores ---------- */
 const estado = {
-  aba: "pan", versao: ult, porte: "todos",
+  aba: "pan", versao: ult, porte: "todos", porteBars: "todos",
   trib: iTJMT >= 0 ? iTJMT : 0, comp: [], filtroReq: "todos", ordemReq: "premio",
   r: mudancas.indexOf(Math.max(...mudancas)), selObj: [], metrica: "res", ordemMat: "pts", busca: "", soMudou: false,
 };
@@ -514,10 +515,11 @@ function renderPanBars() {
   const W = Math.max(box.clientWidth, 280), estreito = W < 520, H = estreito ? 280 : 320;
   const m = { t: 12, r: 12, b: 30, l: 34 };
   const iw = W - m.l - m.r, passo = iw / S, bw = Math.min(52, passo * 0.7);
-  const Y = (v) => m.t + (1 - v / T) * (H - m.t - m.b);
-  const cont = D.datas.map((_, s) => { const c = [0, 0, 0, 0]; selo[s].forEach((k) => c[k]++); return c; });
+  const ids = D.trib.map((_, t) => t).filter((t) => estado.porteBars === "todos" || porteDe[t] === estado.porteBars), N = ids.length;
+  const Y = (v) => m.t + (1 - v / N) * (H - m.t - m.b);
+  const cont = D.datas.map((_, s) => { const c = [0, 0, 0, 0]; ids.forEach((t) => c[selo[s][t]]++); return c; });
   let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Número de tribunais por selo projetado em cada versão">`;
-  [0, 5, 10, 15, 20, 25].forEach((v) => { svg += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--grid)"/><text x="${m.l - 8}" y="${Y(v) + 4}" text-anchor="end">${v}</text>`; });
+  ticksBonitos(0, N, 5).forEach((v) => { svg += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--grid)"/><text x="${m.l - 8}" y="${Y(v) + 4}" text-anchor="end">${v}</text>`; });
   svg += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(0)}" y2="${Y(0)}" stroke="var(--axis)"/>`;
   const cadaN = Math.ceil(36 / passo);
   D.datas.forEach((d, s) => {
@@ -538,7 +540,7 @@ function renderPanBars() {
   const mostrar = (ev) => {
     const s = +ev.currentTarget.dataset.s;
     tip.innerHTML = `<div class="t-date">${fmtData(D.datas[s], true)} · máx. ${maxPts[s]} pts</div>` + [3, 2, 1, 0].map((k) => {
-      const nomes = D.trib.map((_, t) => t).filter((t) => selo[s][t] === k).sort((a, b) => tot[s][b] - tot[s][a]).map((t) => D.trib[t]);
+      const nomes = ids.filter((t) => selo[s][t] === k).sort((a, b) => tot[s][b] - tot[s][a]).map((t) => D.trib[t]);
       const lista = nomes.length > 10 ? nomes.slice(0, 10).join(", ") + ` +${nomes.length - 10}` : nomes.join(", ");
       return `<div class="t-row"><span class="l">${seloSvg(k, 16)}${SELOS[k].nome}</span><span class="t-v">${nomes.length}</span></div>${nomes.length ? `<span class="nm">${lista}</span>` : ""}`;
     }).join("");
@@ -760,6 +762,7 @@ document.querySelectorAll("[data-aba]").forEach((b) => b.addEventListener("click
 $("sel-versao").innerHTML = D.datas.map((d, i) => `<option value="${i}">${fmtData(d, true)}</option>`).reverse().join("");
 $("sel-versao").value = estado.versao;
 $("sel-versao").addEventListener("change", (e) => { estado.versao = +e.target.value; renderPanRank(); });
+$("sel-porte-bars").addEventListener("change", (e) => { estado.porteBars = e.target.value; renderPanBars(); });
 $("sel-porte").addEventListener("change", (e) => { estado.porte = e.target.value; renderPanRank(); });
 $("sel-trib").innerHTML = D.trib.map((t, i) => `<option value="${i}">${t}</option>`).join("");
 $("sel-trib").value = estado.trib;
