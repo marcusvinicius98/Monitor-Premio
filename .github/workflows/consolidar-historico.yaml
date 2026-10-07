@@ -30,8 +30,8 @@ jobs:
       - name: Gravar histórico no repositório (pasta data/)
         run: |
           mkdir -p data
-          cp historico_premio_geral.csv data/
-          cp historico_premio_geral.parquet data/ 2>/dev/null || true
+          cp historico_premio_geral.csv data/historico_actions.csv
+          cp historico_premio_geral.parquet data/historico_actions.parquet 2>/dev/null || true
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add data/

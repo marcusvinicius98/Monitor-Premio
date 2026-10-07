@@ -1,0 +1,489 @@
+<title>Monitor Prêmio CNJ</title>
+<style>
+/* Layout: lista de objetivos (requisitos) à esquerda; à direita, resumo do objetivo, gráfico por tribunal e matriz tribunal x versão */
+:root {
+  --page: #f6f6f3;
+  --surface: #fcfcfb;
+  --ink: #0b0b0b;
+  --ink-2: #52514e;
+  --ink-3: #6b6a65;
+  --grid: #e6e5de;
+  --axis: #c3c2b7;
+  --ring: rgba(11,11,11,.10);
+  --ctx: #cfcec6;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4; --s6: #008300; --s7: #4a3aa7; --s8: #e34948;
+  --good: #006300; --bad: #b8312f;
+  --q0: #ecebe5; --q1: #cde2fb; --q2: #9ec5f4; --q3: #5598e7; --q4: #256abf; --q5: #184f95;
+  --q-ink-light: #0b0b0b; --q-ink-dark: #ffffff;
+  --sel: #e8f0fb;
+  --focus: #2a78d6;
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink-2: #c3c2b7; --ink-3: #a09f98;
+    --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,.10); --ctx: #3b3b38;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #008300; --s7: #9085e9; --s8: #e66767;
+    --good: #0ca30c; --bad: #e66767;
+    --q0: #262624; --q1: #0d366b; --q2: #104281; --q3: #1c5cab; --q4: #3987e5; --q5: #86b6ef;
+    --q-ink-light: #ffffff; --q-ink-dark: #0b0b0b;
+    --sel: #1d2a3b;
+    --focus: #6da7ec;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink-2: #c3c2b7; --ink-3: #a09f98;
+  --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,.10); --ctx: #3b3b38;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #008300; --s7: #9085e9; --s8: #e66767;
+  --good: #0ca30c; --bad: #e66767;
+  --q0: #262624; --q1: #0d366b; --q2: #104281; --q3: #1c5cab; --q4: #3987e5; --q5: #86b6ef;
+  --q-ink-light: #ffffff; --q-ink-dark: #0b0b0b;
+  --sel: #1d2a3b;
+  --focus: #6da7ec;
+}
+* { box-sizing: border-box; }
+body { background: var(--page); color: var(--ink); font-family: var(--font); font-size: 14px; line-height: 1.45; padding-inline: 16px; padding-block: 20px 48px; }
+.wrap { max-width: 1280px; margin-inline: auto; display: flex; flex-direction: column; gap: 20px; }
+h1 { font-size: 1.6rem; line-height: 1.15; margin: 0; font-weight: 700; letter-spacing: -.01em; text-wrap: balance; }
+h2 { font-size: 1rem; margin: 0; font-weight: 650; }
+.eyebrow { font-size: .72rem; text-transform: uppercase; letter-spacing: .09em; color: var(--ink-3); font-weight: 600; }
+.sub { color: var(--ink-2); margin: 4px 0 0; max-width: 72ch; }
+select, button, input { font: inherit; color: var(--ink); }
+select, input[type="search"] { background: var(--surface); border: 1px solid var(--axis); border-radius: 8px; padding: 8px 10px; min-height: 38px; }
+select { padding-right: 28px; }
+input[type="search"] { width: 100%; }
+select:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.panel { background: var(--surface); border: 1px solid var(--ring); border-radius: 12px; padding: 16px; min-width: 0; }
+.panel-head { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.panel-head p { margin: 2px 0 0; color: var(--ink-2); font-size: .85rem; }
+.field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.field label, .lab { font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-3); font-weight: 600; }
+
+.layout { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 20px; align-items: start; }
+.main { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+@media (max-width: 900px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+
+/* lista de objetivos */
+.side { position: sticky; top: 12px; display: flex; flex-direction: column; gap: 10px; max-height: calc(100vh - 24px); padding: 12px; }
+@media (max-width: 900px) { .side { position: static; max-height: none; } }
+.list { overflow-y: auto; margin-inline: -4px; padding-inline: 4px; min-height: 0; max-height: 70vh; }
+@media (max-width: 900px) { .list { max-height: 280px; } }
+.grp { font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-3); font-weight: 650; padding: 10px 6px 4px; position: sticky; top: 0; background: var(--surface); }
+.item { display: flex; gap: 8px; width: 100%; text-align: left; background: none; border: 0; border-radius: 8px; padding: 7px 8px; cursor: pointer; align-items: flex-start; }
+.item:hover { background: var(--grid); }
+.item[aria-current="true"] { background: var(--sel); box-shadow: inset 3px 0 0 var(--s1); }
+.item .t { flex: 1; min-width: 0; font-size: .85rem; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.item .n { flex: none; font-size: .75rem; color: var(--ink-3); font-variant-numeric: tabular-nums; padding-top: 2px; white-space: nowrap; }
+.check { display: flex; gap: 8px; align-items: center; font-size: .85rem; color: var(--ink-2); }
+.check input { width: 16px; height: 16px; }
+.count { font-size: .78rem; color: var(--ink-3); }
+
+/* resumo */
+.title h2 { font-size: 1.25rem; line-height: 1.3; font-weight: 650; text-wrap: balance; margin-top: 4px; }
+.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
+.kpi { border: 1px solid var(--ring); border-radius: 10px; padding: 12px 14px; min-width: 0; background: var(--page); }
+.kpi .big { font-size: 1.7rem; line-height: 1.1; font-weight: 700; margin-top: 4px; letter-spacing: -.02em; }
+.kpi .big small { font-size: .85rem; font-weight: 500; color: var(--ink-2); letter-spacing: 0; }
+.kpi .note { margin-top: 4px; font-size: .8rem; color: var(--ink-2); }
+.up { color: var(--good); font-weight: 600; } .down { color: var(--bad); font-weight: 600; } .flat { color: var(--ink-3); }
+@media (max-width: 1100px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* chips e controles */
+.chips { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--axis); background: var(--surface); border-radius: 999px; padding: 4px 6px 4px 10px; min-height: 30px; font-size: .85rem; cursor: pointer; }
+.chip .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.chip .x { width: 20px; height: 20px; display: inline-grid; place-items: center; border-radius: 50%; color: var(--ink-3); font-size: 1rem; line-height: 1; }
+.chip:hover .x { background: var(--grid); color: var(--ink); }
+.seg { display: inline-flex; border: 1px solid var(--axis); border-radius: 8px; overflow: hidden; }
+.seg button { background: var(--surface); border: 0; padding: 7px 12px; min-height: 36px; cursor: pointer; border-right: 1px solid var(--axis); }
+.seg button:last-child { border-right: 0; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--surface); font-weight: 600; }
+.ghost { background: transparent; border: 1px solid var(--axis); border-radius: 8px; padding: 6px 10px; min-height: 32px; cursor: pointer; }
+.ghost:hover { background: var(--grid); }
+
+/* gráfico */
+.chart { position: relative; width: 100%; }
+.chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.chart text { font-family: var(--font); fill: var(--ink-3); font-size: 11px; }
+.chart .lab-strong { fill: var(--ink); font-weight: 600; }
+.tip { position: absolute; pointer-events: none; background: var(--surface); border: 1px solid var(--axis); border-radius: 8px; padding: 8px 10px; box-shadow: 0 4px 16px rgba(0,0,0,.14); font-size: .8rem; min-width: 170px; z-index: 5; }
+.tip .t-date { font-weight: 650; margin-bottom: 4px; }
+.tip .t-row { display: flex; align-items: center; gap: 10px; justify-content: space-between; }
+.tip .t-row span.l { display: inline-flex; align-items: center; gap: 6px; }
+.tip .dot { width: 8px; height: 8px; border-radius: 50%; }
+.tip .t-v { font-variant-numeric: tabular-nums; font-weight: 600; text-align: right; }
+.tip .t-v small { font-weight: 400; color: var(--ink-3); }
+.scroll { overflow-x: auto; max-width: 100%; }
+
+/* matriz */
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+th { text-align: left; font-size: .72rem; text-transform: uppercase; letter-spacing: .07em; color: var(--ink-3); font-weight: 600; padding: 6px 6px; border-bottom: 1px solid var(--axis); white-space: nowrap; background: var(--surface); }
+td { padding: 3px 3px; border-bottom: 1px solid var(--grid); vertical-align: middle; }
+th.c, td.c { text-align: center; }
+th.num, td.num { text-align: right; padding-inline: 8px; }
+.tbtn { display: inline-flex; align-items: center; gap: 8px; background: none; border: 0; padding: 4px 6px; cursor: pointer; font-weight: 600; border-radius: 6px; min-height: 30px; }
+.tbtn:hover { background: var(--grid); }
+.tbtn .dot { width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid var(--axis); flex: none; }
+.cell { display: inline-grid; place-items: center; min-width: 62px; height: 28px; padding-inline: 4px; border-radius: 6px; font-size: .78rem; font-weight: 600; border: 2px solid transparent; white-space: nowrap; }
+.cell.chg { border-color: var(--ink); }
+.cell.na { background: transparent; border: 1px dashed var(--axis); color: var(--ink-3); font-weight: 400; }
+.legend-line { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 10px; font-size: .78rem; color: var(--ink-3); align-items: center; }
+.legend-line .chgsw { display: inline-block; width: 16px; height: 12px; border: 2px solid var(--ink); border-radius: 4px; vertical-align: -2px; margin-right: 4px; }
+.scale { display: inline-flex; align-items: center; gap: 4px; }
+.scale i { width: 18px; height: 12px; border-radius: 3px; display: inline-block; }
+.empty { padding: 20px; text-align: center; color: var(--ink-3); }
+footer { color: var(--ink-3); font-size: .78rem; max-width: 80ch; }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Prêmio CNJ de Qualidade · Justiça Estadual</div>
+    <h1>Evolução por objetivo</h1>
+    <p class="sub" id="sub"></p>
+  </header>
+
+  <div class="layout">
+    <aside class="panel side" aria-label="Lista de objetivos">
+      <div class="field">
+        <label for="busca">Objetivo</label>
+        <input type="search" id="busca" placeholder="Buscar por palavra ou inciso" autocomplete="off">
+      </div>
+      <label class="check"><input type="checkbox" id="so-mudou"> Só objetivos com mudança de pontos</label>
+      <div class="count" id="contagem"></div>
+      <div class="list" id="lista" role="list"></div>
+    </aside>
+
+    <div class="main">
+      <section class="panel title" id="resumo" aria-live="polite"></section>
+
+      <section class="panel" aria-labelledby="h-evo">
+        <div class="panel-head">
+          <div>
+            <h2 id="h-evo">Evolução nos tribunais</h2>
+            <p id="evo-sub"></p>
+          </div>
+          <div class="seg" role="group" aria-label="Métrica">
+            <button type="button" id="m-res" aria-pressed="true">Resultado</button>
+            <button type="button" id="m-pts" aria-pressed="false">Pontos</button>
+          </div>
+        </div>
+        <div class="chips" id="chips" aria-label="Tribunais destacados no gráfico"></div>
+        <div class="chart" id="chart" style="margin-top:12px"></div>
+      </section>
+
+      <section class="panel" aria-labelledby="h-mat">
+        <div class="panel-head">
+          <div>
+            <h2 id="h-mat">Todos os tribunais, versão por versão</h2>
+            <p>A cor mostra os pontos obtidos; o texto mostra a métrica escolhida acima. Clique no tribunal para destacá-lo no gráfico.</p>
+          </div>
+          <div class="field" style="flex-direction:row;align-items:center;gap:8px">
+            <label for="sel-ord" style="white-space:nowrap">Ordem</label>
+            <select id="sel-ord">
+              <option value="pts">Mais pontos primeiro</option>
+              <option value="resMaior">Maior resultado primeiro</option>
+              <option value="resMenor">Menor resultado primeiro</option>
+              <option value="nome">Nome do tribunal</option>
+            </select>
+          </div>
+        </div>
+        <div class="scroll"><table id="mat"></table></div>
+        <div class="legend-line">
+          <span class="scale">0 %<i style="background:var(--q0)"></i><i style="background:var(--q1)"></i><i style="background:var(--q2)"></i><i style="background:var(--q3)"></i><i style="background:var(--q4)"></i><i style="background:var(--q5)"></i>100 % do valor do objetivo</span>
+          <span><span class="chgsw"></span>mudou em relação à versão anterior</span>
+          <span>tracejado: sem registro naquela versão</span>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <footer id="foot"></footer>
+</div>
+
+<script>
+const D = /*__DADOS__*/null;
+
+/* ---------- derivados ---------- */
+const S = D.datas.length, T = D.trib.length, R = D.req.length;
+const ult = S - 1;
+const fmtData = (iso, ano) => { const [y, m, d] = iso.split("-"); return ano ? `${d}/${m}/${y}` : `${d}/${m}`; };
+const sum = (a) => a.reduce((x, y) => x + (y || 0), 0);
+const tot = D.pts.map((porTrib) => porTrib.map((linha) => sum(linha)));
+const $ = (id) => document.getElementById(id);
+const sinal = (n, casas = 0) => { const a = Math.abs(n).toLocaleString("pt-BR", { maximumFractionDigits: casas }); return n > 0 ? "+" + a : n < 0 ? "−" + a : "0"; };
+const cls = (n) => (n > 0 ? "up" : n < 0 ? "down" : "flat");
+const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
+
+// resultado vem como texto em formato brasileiro ("1.108", "10,7%"): converte para número
+function num(s) {
+  if (s == null) return null;
+  let x = String(s).replace("%", "").trim();
+  if (x.includes(",")) x = x.replace(/\./g, "").replace(",", ".");
+  else if (/^\d{1,3}(\.\d{3})+$/.test(x)) x = x.replace(/\./g, "");
+  const n = parseFloat(x);
+  return Number.isFinite(n) ? n : null;
+}
+const resN = D.res.map((porTrib) => porTrib.map((linha) => linha.map(num)));
+const refN = D.ref.map((linha) => linha.map(num));
+const ehPct = (r) => D.res.some((porTrib) => porTrib.some((linha) => linha[r] != null && String(linha[r]).includes("%")));
+const fmtN = (v, pct) => v.toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + (pct ? "%" : "");
+const mediana = (a) => { const b = a.filter((x) => x != null).sort((x, y) => x - y); if (!b.length) return null; const m = b.length >> 1; return b.length % 2 ? b[m] : (b[m - 1] + b[m]) / 2; };
+
+// quantas vezes os pontos mudaram, somando todos os tribunais
+const mudancas = D.req.map((_, r) => {
+  let n = 0;
+  for (let s = 1; s < S; s++) for (let t = 0; t < T; t++) { const a = D.pts[s - 1][t][r], b = D.pts[s][t][r]; if (a != null && b != null && a !== b) n++; }
+  return n;
+});
+const cheios = (s, r) => { let n = 0; for (let t = 0; t < T; t++) if (D.val[s][r] != null && D.pts[s][t][r] === D.val[s][r]) n++; return n; };
+const primeiraVersao = (r) => { for (let s = 0; s < S; s++) if (D.val[s][r] != null) return s; return 0; };
+
+const estado = { r: 0, sel: [], metrica: "res", ordem: "pts", busca: "", soMudou: false };
+estado.r = mudancas.indexOf(Math.max(...mudancas)); // começa pelo objetivo que mais mudou
+
+const slots = ["--s1", "--s2", "--s3", "--s4", "--s5", "--s6", "--s7", "--s8"];
+const cores = {};
+const corDe = (t) => {
+  if (cores[t] === undefined) { const usados = new Set(Object.values(cores)); let i = 0; while (usados.has(i) && i < slots.length - 1) i++; cores[t] = i; }
+  return `var(${slots[cores[t]]})`;
+};
+const MAX_SEL = 5;
+
+function selecaoPadrao(r) {
+  return D.trib.map((_, t) => t)
+    .sort((a, b) => (D.pts[ult][b][r] || 0) - (D.pts[ult][a][r] || 0) || tot[ult][b] - tot[ult][a] || D.trib[a].localeCompare(D.trib[b]))
+    .slice(0, 4);
+}
+estado.sel = selecaoPadrao(estado.r);
+estado.sel.forEach(corDe);
+
+$("sub").textContent = `${D.req.length} objetivos, ${T} tribunais e ${S} versões da tabela do CNJ, de ${fmtData(D.datas[0], true)} a ${fmtData(D.datas[ult], true)}. Escolha um objetivo na lista para ver como pontos e resultado evoluíram em cada tribunal.`;
+
+/* ---------- lista de objetivos ---------- */
+function renderLista() {
+  const q = estado.busca.trim().toLowerCase();
+  const itens = D.req.map((x, r) => ({ x, r })).filter(({ x, r }) =>
+    (!q || (`${x.ali} ${x.txt}`).toLowerCase().includes(q)) && (!estado.soMudou || mudancas[r] > 0));
+  $("contagem").textContent = `${itens.length} de ${R} objetivos`;
+  let h = "", art = null;
+  itens.forEach(({ x, r }) => {
+    if (x.art !== art) { art = x.art; h += `<div class="grp" role="presentation">Artigo ${x.art}</div>`; }
+    h += `<button type="button" class="item" role="listitem" data-r="${r}" aria-current="${r === estado.r}" title="${esc(x.txt)}"><span class="t">${esc(x.txt)}</span><span class="n" title="Tribunais com nota cheia na versão mais recente">${cheios(ult, r)}/${T}</span></button>`;
+  });
+  if (!itens.length) h = `<div class="empty">Nenhum objetivo encontrado.</div>`;
+  $("lista").innerHTML = h;
+  $("lista").querySelectorAll("[data-r]").forEach((b) => b.addEventListener("click", () => escolher(+b.dataset.r)));
+}
+
+/* ---------- resumo do objetivo ---------- */
+function renderResumo() {
+  const r = estado.r, q = D.req[r], v = D.val[ult][r], s0 = primeiraVersao(r), pct = ehPct(r);
+  const c1 = cheios(ult, r), c0 = cheios(s0, r);
+  const m1 = D.trib.reduce((a, _, t) => a + (D.pts[ult][t][r] || 0), 0) / T / v * 100;
+  const m0 = D.trib.reduce((a, _, t) => a + (D.pts[s0][t][r] || 0), 0) / T / D.val[s0][r] * 100;
+  const md1 = mediana(D.trib.map((_, t) => resN[ult][t][r])), md0 = mediana(D.trib.map((_, t) => resN[s0][t][r]));
+  const desde = `desde ${fmtData(D.datas[s0])}`;
+  $("resumo").innerHTML = `
+    <div class="eyebrow">Artigo ${q.art} · Inciso ${q.ali}</div>
+    <h2>${esc(q.txt)}</h2>
+    <div class="kpis">
+      <div class="kpi"><div class="lab">Valor do objetivo</div><div class="big">${v} <small>pts</small></div>
+        <div class="note">${D.ref[ult][r] ? "Referência: " + esc(D.ref[ult][r]) : "Sem referência numérica"}</div></div>
+      <div class="kpi"><div class="lab">Com nota cheia</div><div class="big">${c1} <small>de ${T}</small></div>
+        <div class="note"><span class="${cls(c1 - c0)}">${sinal(c1 - c0)}</span> tribunais ${desde}</div></div>
+      <div class="kpi"><div class="lab">Média de pontos</div><div class="big">${m1.toFixed(0)}<small> % do valor</small></div>
+        <div class="note"><span class="${cls(m1 - m0)}">${sinal(m1 - m0)} p.p.</span> ${desde}</div></div>
+      <div class="kpi"><div class="lab">Resultado mediano</div><div class="big">${md1 == null ? "—" : fmtN(md1, pct)}</div>
+        <div class="note">${md0 == null || md1 == null ? "" : `<span class="${cls(md1 - md0)}">${sinal(md1 - md0, 1)}${pct ? " p.p." : ""}</span> ${desde}`}</div></div>
+    </div>`;
+}
+
+/* ---------- gráfico ---------- */
+const valorMetrica = (s, t, r) => (estado.metrica === "pts" ? D.pts[s][t][r] : resN[s][t][r]);
+const textoMetrica = (s, t, r) => (estado.metrica === "pts" ? (D.pts[s][t][r] == null ? "—" : String(D.pts[s][t][r])) : (D.res[s][t][r] == null ? "—" : String(D.res[s][t][r])));
+
+function ticksBonitos(lo, hi, n) {
+  const span = hi - lo || 1, bruto = span / n, mag = Math.pow(10, Math.floor(Math.log10(bruto)));
+  const f = bruto / mag, passo = (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * mag;
+  const ini = Math.ceil(lo / passo) * passo, out = [];
+  for (let v = ini; v <= hi + 1e-9; v += passo) out.push(+v.toFixed(6));
+  return out;
+}
+
+function renderChips() {
+  let h = estado.sel.map((t) => `<button type="button" class="chip" data-rm="${t}" aria-label="Remover ${D.trib[t]} do destaque"><span class="dot" style="background:${corDe(t)}"></span>${D.trib[t]}<span class="x" aria-hidden="true">×</span></button>`).join("");
+  if (estado.sel.length < MAX_SEL) {
+    const op = D.trib.map((n, i) => ({ n, i })).filter((o) => !estado.sel.includes(o.i));
+    h += `<select id="add-trib" aria-label="Destacar outro tribunal"><option value="">+ Destacar tribunal…</option>${op.map((o) => `<option value="${o.i}">${o.n}</option>`).join("")}</select>`;
+  }
+  h += `<button type="button" class="ghost" id="padrao">Mais pontos</button>`;
+  if (estado.sel.length) h += `<button type="button" class="ghost" id="limpar">Limpar</button>`;
+  $("chips").innerHTML = h;
+  $("chips").querySelectorAll("[data-rm]").forEach((b) => b.addEventListener("click", () => { estado.sel = estado.sel.filter((t) => t !== +b.dataset.rm); renderGrafico(); renderChips(); renderMatriz(); }));
+  const add = $("add-trib");
+  if (add) add.addEventListener("change", () => { if (add.value !== "") alternar(+add.value, true); });
+  $("padrao").addEventListener("click", () => { estado.sel = selecaoPadrao(estado.r); estado.sel.forEach(corDe); renderGrafico(); renderChips(); renderMatriz(); });
+  const lim = $("limpar"); if (lim) lim.addEventListener("click", () => { estado.sel = []; renderGrafico(); renderChips(); renderMatriz(); });
+}
+
+function alternar(t, forcarAdd) {
+  if (estado.sel.includes(t) && !forcarAdd) estado.sel = estado.sel.filter((x) => x !== t);
+  else if (!estado.sel.includes(t)) { if (estado.sel.length >= MAX_SEL) estado.sel.shift(); estado.sel.push(t); corDe(t); }
+  renderChips(); renderGrafico(); renderMatriz();
+}
+
+function renderGrafico() {
+  const r = estado.r, pct = ehPct(r), met = estado.metrica;
+  const box = $("chart");
+  const W = Math.max(box.clientWidth, 280), estreito = W < 520, H = estreito ? 300 : 380;
+  const m = { t: 14, r: estreito ? 50 : 76, b: 30, l: estreito ? 44 : 52 };
+  const ts = D.datas.map((d) => Date.parse(d + "T12:00:00Z"));
+  const X = (s) => m.l + (S === 1 ? (W - m.l - m.r) / 2 : ((ts[s] - ts[0]) / (ts[ult] - ts[0])) * (W - m.l - m.r));
+
+  // domínio do eixo y
+  const vs = []; for (let s = 0; s < S; s++) for (let t = 0; t < T; t++) { const v = valorMetrica(s, t, r); if (v != null) vs.push(v); }
+  const refv = refN[ult][r];
+  let y0, y1;
+  if (met === "pts") { y0 = 0; y1 = Math.max(...D.val.map((v) => v[r] || 0)); }
+  else {
+    const todos = refv != null ? vs.concat([refv]) : vs;
+    y0 = Math.min(...todos); y1 = Math.max(...todos);
+    const pad = (y1 - y0 || Math.abs(y1) || 1) * 0.06; y0 -= pad; y1 += pad;
+    if (pct) { y0 = Math.max(y0, 0); }
+  }
+  const Y = (v) => m.t + (1 - (v - y0) / (y1 - y0)) * (H - m.t - m.b);
+  const ticks = ticksBonitos(y0, y1, 5);
+  const fmtTick = (v) => (met === "pts" ? String(v) : fmtN(v, pct));
+
+  const caminho = (t) => {
+    let d = "", ant = null;
+    for (let s = 0; s < S; s++) {
+      const v = valorMetrica(s, t, r);
+      if (v == null) { ant = null; continue; }
+      d += ant == null ? `M${X(s)},${Y(v)}` : ` H${X(s)} V${Y(v)}`;
+      ant = v;
+    }
+    return d;
+  };
+
+  let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Evolução de ${met === "pts" ? "pontos" : "resultado"} por tribunal no objetivo selecionado">`;
+  ticks.forEach((v) => {
+    svg += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--grid)"/>`;
+    svg += `<text x="${m.l - 8}" y="${Y(v) + 4}" text-anchor="end">${fmtTick(v)}</text>`;
+  });
+  svg += `<line x1="${m.l}" x2="${W - m.r}" y1="${H - m.b}" y2="${H - m.b}" stroke="var(--axis)"/>`;
+  let ultimoX = -999;
+  D.datas.forEach((d, s) => {
+    svg += `<line x1="${X(s)}" x2="${X(s)}" y1="${H - m.b}" y2="${H - m.b + 4}" stroke="var(--axis)"/>`;
+    if (X(s) - ultimoX >= 38) { svg += `<text x="${X(s)}" y="${H - m.b + 17}" text-anchor="middle">${fmtData(d)}</text>`; ultimoX = X(s); }
+  });
+  // referência do objetivo (só no resultado)
+  if (met === "res" && refv != null && refv >= y0 && refv <= y1) {
+    svg += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(refv)}" y2="${Y(refv)}" stroke="var(--ink-3)" stroke-dasharray="5 4"/>`;
+    svg += `<text x="${W - m.r + 8}" y="${Y(refv) + 4}">ref. ${esc(D.ref[ult][r])}</text>`;
+  }
+  const sel = new Set(estado.sel);
+  for (let t = 0; t < T; t++) if (!sel.has(t)) svg += `<path d="${caminho(t)}" fill="none" stroke="var(--ctx)" stroke-width="1" opacity=".8"/>`;
+  [...estado.sel].reverse().forEach((t) => {
+    const c = corDe(t);
+    svg += `<path d="${caminho(t)}" fill="none" stroke="${c}" stroke-width="2.5" stroke-linejoin="round"/>`;
+    for (let s = 0; s < S; s++) { const v = valorMetrica(s, t, r); if (v != null) svg += `<circle cx="${X(s)}" cy="${Y(v)}" r="4" fill="${c}" stroke="var(--surface)" stroke-width="2"/>`; }
+  });
+  // rótulos diretos no fim, sem colisão
+  const fins = estado.sel.map((t) => ({ t, y: Y(valorMetrica(ult, t, r) ?? y0) })).sort((a, b) => a.y - b.y);
+  for (let i = 1; i < fins.length; i++) if (fins[i].y - fins[i - 1].y < 13) fins[i].y = fins[i - 1].y + 13;
+  fins.forEach((f) => { svg += `<text class="lab-strong" x="${W - m.r + 8}" y="${f.y + 4}" ${met === "res" && refv != null && Math.abs(f.y - Y(refv)) < 12 ? 'dy="-12"' : ""}>${D.trib[f.t]}</text>`; });
+
+  svg += `<line id="xh" x1="0" x2="0" y1="${m.t}" y2="${H - m.b}" stroke="var(--ink-3)" stroke-dasharray="3 3" visibility="hidden"/>`;
+  svg += `<rect id="hit" x="${m.l - 10}" y="${m.t}" width="${W - m.l - m.r + 20}" height="${H - m.t - m.b}" fill="transparent" style="touch-action:pan-y"/>`;
+  svg += `</svg><div class="tip" id="tip" hidden></div>`;
+  if (!estado.sel.length) svg += `<div class="empty">Nenhum tribunal destacado. Use “+ Destacar tribunal…” ou clique em um tribunal na tabela abaixo.</div>`;
+  box.innerHTML = svg;
+
+  const hit = $("hit"), xh = $("xh"), tip = $("tip");
+  const mostrar = (ev) => {
+    if (!estado.sel.length) return;
+    const rc = box.getBoundingClientRect(), px = ev.clientX - rc.left;
+    let melhor = 0, dist = 1e9;
+    for (let s = 0; s < S; s++) { const d = Math.abs(X(s) - px); if (d < dist) { dist = d; melhor = s; } }
+    xh.setAttribute("x1", X(melhor)); xh.setAttribute("x2", X(melhor)); xh.setAttribute("visibility", "visible");
+    const ls = estado.sel.map((t) => ({ t, v: valorMetrica(melhor, t, r) })).sort((a, b) => (b.v ?? -1e12) - (a.v ?? -1e12));
+    tip.innerHTML = `<div class="t-date">${fmtData(D.datas[melhor], true)}</div>` + ls.map((l) => {
+      const p = D.pts[melhor][l.t][r], vmax = D.val[melhor][r];
+      const principal = met === "pts" ? (p == null ? "—" : `${p} <small>de ${vmax} pts</small>`) : `${D.res[melhor][l.t][r] ?? "—"}${p == null ? "" : ` <small>· ${p} pts</small>`}`;
+      return `<div class="t-row"><span class="l"><span class="dot" style="background:${corDe(l.t)}"></span>${D.trib[l.t]}</span><span class="t-v">${principal}</span></div>`;
+    }).join("");
+    tip.hidden = false;
+    const tw = tip.offsetWidth; let left = X(melhor) + 14; if (left + tw > W) left = X(melhor) - tw - 14;
+    tip.style.left = Math.max(0, left) + "px"; tip.style.top = (m.t + 6) + "px";
+  };
+  const esconder = () => { tip.hidden = true; xh.setAttribute("visibility", "hidden"); };
+  hit.addEventListener("pointermove", mostrar); hit.addEventListener("pointerdown", mostrar); hit.addEventListener("pointerleave", esconder);
+
+  $("evo-sub").textContent = met === "res"
+    ? "Resultado de cada tribunal (linhas em degrau: o valor vale até a próxima versão). Em cinza, os demais tribunais."
+    : "Pontos obtidos por tribunal (linhas em degrau). Em cinza, os demais tribunais.";
+}
+
+/* ---------- matriz tribunal x versão ---------- */
+function corCelula(p, v) {
+  if (v == null || p == null) return null;
+  const f = v === 0 ? 0 : p / v;
+  const i = f <= 0 ? 0 : f >= 1 ? 5 : Math.min(4, 1 + Math.floor(f * 4));
+  return { bg: `var(--q${i})`, fg: i >= 4 ? "var(--q-ink-dark)" : i >= 1 ? "var(--q-ink-light)" : "var(--ink-2)" };
+}
+function renderMatriz() {
+  const r = estado.r, pct = ehPct(r), met = estado.metrica;
+  const idx = D.trib.map((_, t) => t);
+  const o = estado.ordem;
+  idx.sort((a, b) => {
+    if (o === "nome") return D.trib[a].localeCompare(D.trib[b]);
+    if (o === "resMaior") return (resN[ult][b][r] ?? -1e12) - (resN[ult][a][r] ?? -1e12) || D.trib[a].localeCompare(D.trib[b]);
+    if (o === "resMenor") return (resN[ult][a][r] ?? 1e12) - (resN[ult][b][r] ?? 1e12) || D.trib[a].localeCompare(D.trib[b]);
+    return (D.pts[ult][b][r] || 0) - (D.pts[ult][a][r] || 0) || (resN[ult][b][r] ?? 0) - (resN[ult][a][r] ?? 0) || D.trib[a].localeCompare(D.trib[b]);
+  });
+  const s0 = primeiraVersao(r);
+  let h = `<thead><tr><th>Tribunal</th>${D.datas.map((d) => `<th class="c">${fmtData(d)}</th>`).join("")}<th class="num">Variação</th></tr></thead><tbody>`;
+  idx.forEach((t) => {
+    const marcado = estado.sel.includes(t);
+    const a = valorMetrica(s0, t, r), b = valorMetrica(ult, t, r);
+    const delta = a == null || b == null ? null : b - a;
+    h += `<tr><td><button type="button" class="tbtn" data-t="${t}" aria-pressed="${marcado}" title="${marcado ? "Remover do gráfico" : "Destacar no gráfico"}"><span class="dot" style="${marcado ? `background:${corDe(t)};border-color:${corDe(t)}` : ""}"></span>${D.trib[t]}</button></td>`;
+    D.datas.forEach((_, s) => {
+      const p = D.pts[s][t][r], v = D.val[s][r], cc = corCelula(p, v);
+      if (!cc) { h += `<td class="c"><span class="cell na" title="Sem registro nesta versão">–</span></td>`; return; }
+      const anteriorP = s > 0 ? D.pts[s - 1][t][r] : null, anteriorR = s > 0 ? D.res[s - 1][t][r] : null;
+      const chg = s > 0 && (met === "pts" ? anteriorP != null && anteriorP !== p : anteriorR != null && anteriorR !== D.res[s][t][r]);
+      h += `<td class="c"><span class="cell${chg ? " chg" : ""}" style="background:${cc.bg};color:${cc.fg}" title="${esc(D.trib[t])} · ${fmtData(D.datas[s], true)}: resultado ${esc(D.res[s][t][r] ?? "—")}, ${p} de ${v} pts">${esc(textoMetrica(s, t, r))}</span></td>`;
+    });
+    h += `<td class="num"><span class="${delta == null ? "flat" : cls(delta)}">${delta == null ? "—" : sinal(delta, met === "pts" ? 0 : 1) + (met === "res" && pct ? " p.p." : "")}</span></td></tr>`;
+  });
+  $("mat").innerHTML = h + "</tbody>";
+  $("mat").querySelectorAll("[data-t]").forEach((b) => b.addEventListener("click", () => alternar(+b.dataset.t)));
+}
+
+/* ---------- rodapé e eventos ---------- */
+$("foot").textContent = `Fonte: tabela geral do Prêmio CNJ de Qualidade, capturada pelo Monitor-Premio (GitHub Actions) a cada mudança detectada. A variação compara a versão mais recente com a primeira em que o objetivo aparece. Objetivos renomeados entre versões foram unificados.`;
+
+function escolher(r) {
+  estado.r = r;
+  renderLista(); renderResumo(); renderChips(); renderGrafico(); renderMatriz();
+  if (window.matchMedia("(max-width: 900px)").matches) $("resumo").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+$("busca").addEventListener("input", (e) => { estado.busca = e.target.value; renderLista(); });
+$("so-mudou").addEventListener("change", (e) => { estado.soMudou = e.target.checked; renderLista(); });
+$("sel-ord").addEventListener("change", (e) => { estado.ordem = e.target.value; renderMatriz(); });
+[["m-res", "res"], ["m-pts", "pts"]].forEach(([id, mt]) => $(id).addEventListener("click", () => {
+  estado.metrica = mt;
+  $("m-res").setAttribute("aria-pressed", String(mt === "res")); $("m-pts").setAttribute("aria-pressed", String(mt === "pts"));
+  renderGrafico(); renderMatriz();
+}));
+
+renderLista(); renderResumo(); renderChips(); renderGrafico(); renderMatriz();
+const itemAtivo = document.querySelector('.item[aria-current="true"]');
+if (itemAtivo) itemAtivo.scrollIntoView({ block: "nearest" });
+let larguraAnterior = $("chart").clientWidth;
+new ResizeObserver(() => { const w = $("chart").clientWidth; if (w !== larguraAnterior) { larguraAnterior = w; renderGrafico(); } }).observe($("chart"));
+</script>
