@@ -1,0 +1,48 @@
+name: Consolidar histórico prev_tabela
+
+permissions:
+  contents: write
+  actions: read
+
+on:
+  workflow_dispatch:
+
+jobs:
+  consolidar:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      - name: Instalar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalar dependências
+        run: pip install pandas openpyxl pyarrow
+
+      - name: Consolidar snapshots
+        run: python scripts/consolidar_historico.py
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Gravar histórico no repositório (pasta data/)
+        run: |
+          mkdir -p data
+          cp historico_prev_tabela.csv data/
+          cp historico_prev_tabela.parquet data/ 2>/dev/null || true
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/
+          git commit -m "chore: histórico consolidado de prev_tabela" || echo "Sem mudanças para commitar"
+          git push
+
+      - name: Upload do histórico consolidado
+        uses: actions/upload-artifact@v4
+        with:
+          name: historico_prev_tabela
+          path: |
+            historico_prev_tabela.csv
+            historico_prev_tabela.parquet
+          if-no-files-found: error
