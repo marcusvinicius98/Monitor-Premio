@@ -36,6 +36,7 @@
   --selo-d: #5cc8f0; --selo-o: #e0b43a; --selo-p: #b8c0c9; --selo-n: #4a4a46;
   --sel: #1d2a3b; --focus: #6da7ec;
 }
+[hidden] { display: none !important; } /* sem isso, display:flex/grid das abas anula o atributo hidden */
 * { box-sizing: border-box; }
 body { background: var(--page); color: var(--ink); font-family: var(--font); font-size: 14px; line-height: 1.45; padding-inline: 16px; padding-block: 20px 48px; }
 .wrap { max-width: 1280px; margin-inline: auto; display: flex; flex-direction: column; gap: 20px; }
