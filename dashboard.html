@@ -100,6 +100,7 @@ select:focus-visible, button:focus-visible, input:focus-visible { outline: 2px s
 .strip .it { flex: none; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 6px; border-radius: 8px; min-width: 62px; border: 1px solid transparent; }
 .strip .it.chg { border-color: var(--ink); }
 .strip .it .d { font-size: .72rem; color: var(--ink-3); }
+.strip .it .mo { font-size: .68rem; color: var(--ink-3); white-space: nowrap; }
 .strip .it .p { font-size: .75rem; font-weight: 600; font-variant-numeric: tabular-nums; }
 .opps { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
 .opp { border: 1px solid var(--ring); border-radius: 10px; padding: 10px 12px; background: var(--page); display: flex; flex-direction: column; gap: 4px; min-width: 0; }
@@ -240,7 +241,7 @@ footer { color: var(--ink-3); font-size: .78rem; max-width: 90ch; }
       <div class="chart" id="t-chart" style="margin-top:12px"></div>
     </section>
     <section class="panel">
-      <div class="panel-head"><div><h2>Selo em cada versão</h2><p>Contorno: o selo mudou em relação à versão anterior.</p></div></div>
+      <div class="panel-head"><div><h2>Selo em cada versão</h2><p>Contorno: o selo mudou em relação à versão anterior. Abaixo do percentual, o motivo do selo: “% do máx.” quando passou do limite percentual, ou a colocação entre os tribunais do mesmo porte (por exemplo, o 2º colocado de médio porte recebe Diamante mesmo com menos de 85 %, desde que tenha ao menos 70 %).</p></div></div>
       <div class="strip" id="t-strip"></div>
     </section>
     <section class="panel">
@@ -359,6 +360,12 @@ function seloTrib(s, t) {
   return 0;
 }
 const selo = tot.map((linha, s) => linha.map((_, t) => seloTrib(s, t)));
+/* motivo do selo: "pct" = passou o limite percentual; "pos" = entrou pela colocação no porte */
+function seloMotivo(s, t) {
+  const k = selo[s][t]; if (!k) return "";
+  return pct[s][t] > REGRAS[k][porteDe[t]][0] ? "pct" : "pos";
+}
+const textoMotivo = (s, t) => { const m = seloMotivo(s, t); return m === "pct" ? `acima de ${SELOS[selo[s][t]].min} %` : m === "pos" ? `${posPorte[s][t]}º no porte` : ""; };
 const ptsParaSelo = (k, mx) => Math.floor((SELOS[k].min * mx) / 100) + 1; // menor pontuação inteira "acima de" X %
 
 function seloSvg(k, tam = 28) {
@@ -599,7 +606,7 @@ function renderTribHero() {
   const msg = prox ? `Pelo critério percentual, faltam <strong>${Math.max(faltam, 0)} pts</strong> para o selo <strong>${SELOS[prox].nome}</strong> (acima de ${SELOS[prox].min} %, ou seja, ${ptsParaSelo(prox, mx)} pts). Pela colocação no porte, ele precisaria estar até ${REGRAS[prox][porteDe[t]][1]}º entre os de ${NOME_PORTE[porteDe[t]].toLowerCase()} e ter ao menos ${REGRAS[prox][porteDe[t]][2]} %.` : `Já está na faixa mais alta da projeção. Em relação ao limite percentual do Diamante (${ptsParaSelo(3, mx)} pts), a diferença é de <strong>${p1 - ptsParaSelo(3, mx)} pts</strong>.`;
   const marcas = [[75, "Prata"], [80, "Ouro"], [85, "Diamante"]].map(([v, n]) => `<span class="tick" style="left:${v}%"></span><span class="tl" style="left:${v}%">${n} ${v} %</span>`).join("");
   $("t-hero").innerHTML = `<div class="hero">
-    <div class="big-selo">${seloSvg(k, 104)}<div class="nm">${SELOS[k].nome}</div><div class="pj">selo projetado · ${NOME_PORTE[porteDe[t]].toLowerCase()}</div></div>
+    <div class="big-selo">${seloSvg(k, 104)}<div class="nm">${SELOS[k].nome}</div><div class="pj">${k ? "por " + (seloMotivo(ult, t) === "pct" ? "percentual" : "colocação no porte") + " · " : ""}selo projetado · ${NOME_PORTE[porteDe[t]].toLowerCase()}</div></div>
     <div>
       <div class="mets">
         <div class="met"><div class="lab">Pontuação</div><div class="big">${p1} <small>de ${mx}</small></div><div class="note"><span class="${cls(dPts)}">${sinal(dPts)} pts</span> desde ${fmtData(D.datas[0])}</div></div>
@@ -624,7 +631,7 @@ function renderTribChart() {
 }
 function renderTribStrip() {
   const t = estado.trib;
-  $("t-strip").innerHTML = D.datas.map((d, s) => `<div class="it${s > 0 && selo[s][t] !== selo[s - 1][t] ? " chg" : ""}" title="${SELOS[selo[s][t]].nome} em ${fmtData(d, true)}">${seloSvg(selo[s][t], 32)}<span class="p">${fmtPct(pct[s][t])}</span><span class="d">${fmtData(d)}</span></div>`).join("");
+  $("t-strip").innerHTML = D.datas.map((d, s) => `<div class="it${s > 0 && selo[s][t] !== selo[s - 1][t] ? " chg" : ""}" title="${SELOS[selo[s][t]].nome} em ${fmtData(d, true)}${selo[s][t] ? " (" + textoMotivo(s, t) + ")" : ""}">${seloSvg(selo[s][t], 32)}<span class="p">${fmtPct(pct[s][t])}</span><span class="mo">${seloMotivo(s, t) === "pos" ? posPorte[s][t] + "º porte" : seloMotivo(s, t) === "pct" ? "% do máx." : "—"}</span><span class="d">${fmtData(d)}</span></div>`).join("");
 }
 function corCelula(p, v) {
   if (v == null || p == null) return null;
